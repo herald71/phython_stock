@@ -86,23 +86,22 @@ def get_market_sentiment():
     except Exception:
         pass
 
-    # 3. VKOSPI 지수 (한국) - Naver SISE 페이지에서 추출 (정확한 변동성 지수)
+    # 3. VKOSPI 지수 (한국) - 인베스팅닷컴에서 추출
     try:
         from bs4 import BeautifulSoup
-        # VKOSPI의 네이버 금융 코드 (KPI200VOL)
-        vk_url = "https://finance.naver.com/sise/sise_index.naver?code=KPI200VOL"
-        vk_headers = {'User-Agent': 'Mozilla/5.0'}
+        # 인베스팅닷컴 코스피 변동성 지수 페이지
+        vk_url = "https://kr.investing.com/indices/kospi-volatility"
+        vk_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+        }
         vk_r = requests.get(vk_url, headers=vk_headers, timeout=5)
         if vk_r.status_code == 200:
             soup = BeautifulSoup(vk_r.text, 'html.parser')
-            quotient_div = soup.select_one('#quotient')
-            if quotient_div:
-                # quotient 내부 텍스트를 줄바꿈으로 나누면 세 번째 줄에 실제 변동성 지수가 있습니다.
-                # (예: ['', '6,244.13', '63.14 -1.00%상승', '']) -> '63.14' 추출
-                q_text = quotient_div.text.split('\n')
-                if len(q_text) >= 3:
-                    val_str = q_text[2].split()[0] # '63.14' 부분만 가져오기
-                    sentiment_data["vkospi_score"] = float(val_str.replace(',', ''))
+            # 사용자가 지정한 data-test="instrument-price-last" 속성을 가진 div 추출
+            price_div = soup.find('div', {'data-test': 'instrument-price-last'})
+            if price_div:
+                val_str = price_div.text.strip()
+                sentiment_data["vkospi_score"] = float(val_str.replace(',', ''))
     except Exception:
         pass
         
