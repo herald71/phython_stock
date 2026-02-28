@@ -96,6 +96,12 @@ with st.sidebar.form("search_form"):
     start_date = st.date_input("시작일", value=default_start)
     end_date = st.date_input("종료일", value=default_end)
     
+    # 지표 표시 설정
+    st.subheader("🛠️ 지표 설정")
+    show_ma = st.checkbox("이동평균선 (MA) 표시", value=True)
+    show_rsi = st.checkbox("상대강도지수 (RSI) 표시", value=True)
+    show_macd = st.checkbox("MACD 표시", value=True)
+    
     # st.form_submit_button: 작성한 폼을 서버로 보내는(실행하는) 버튼입니다.
     submit_button = st.form_submit_button("조회하기")
 
@@ -179,37 +185,72 @@ if submit_button:
             draw_custom_metric(col5, "최근 20일 평균거래량", f"{v_avg_20:,} 주")
             draw_custom_metric(col6, "상대거래량 (RVOL)", f"{rvol:.2f}", color="#FF0000", help_text="현재 거래량을 최근 20일 평균 거래량으로 나눈 수치입니다. 1.0보다 크면 평소보다 거래가 활발함을 의미합니다.")
             
-            # --- 7. 이동평균선(MA) 및 매매 신호 계산 ---
-            # rolling(window=N).mean(): 최근 N일간의 종가 평균을 계산합니다.
+            # --- 7. 보조 지표 계산 (MA, RSI, MACD) ---
+            # 이동평균선(MA)
             stock_df['MA5'] = stock_df['Close'].rolling(window=5).mean()
             stock_df['MA10'] = stock_df['Close'].rolling(window=10).mean()
             stock_df['MA20'] = stock_df['Close'].rolling(window=20).mean()
             stock_df['MA60'] = stock_df['Close'].rolling(window=60).mean()
 
+            # RSI (Relative Strength Index) 계산
+            def calculate_rsi(data, window=14):
+                delta = data.diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+                rs = gain / loss
+                return 100 - (100 / (1 + rs))
+            
+            stock_df['RSI'] = calculate_rsi(stock_df['Close'])
+
+            # MACD (Moving Average Convergence Divergence) 계산
+            # 12일 지수이동평균 - 26일 지수이동평균
+            exp1 = stock_df['Close'].ewm(span=12, adjust=False).mean()
+            exp2 = stock_df['Close'].ewm(span=26, adjust=False).mean()
+            stock_df['MACD'] = exp1 - exp2
+            # 시그널 라인 (9일 EMA)
+            stock_df['Signal'] = stock_df['MACD'].ewm(span=9, adjust=False).mean()
+            stock_df['MACD_Hist'] = stock_df['MACD'] - stock_df['Signal']
+
             # 골든크로스 & 데드크로스 신호 판별 (20일선 vs 60일선)
-            # shift(1): 전날 데이터를 가져옵니다.
-            # 골든크로스: 전날에는 20일선이 아래였는데, 오늘 위로 올라온 경우
             stock_df['Golden'] = (stock_df['MA20'].shift(1) < stock_df['MA60'].shift(1)) & (stock_df['MA20'] > stock_df['MA60'])
-            # 데드크로스: 전날에는 20일선이 위였는데, 오늘 아래로 내려온 경우
             stock_df['Death'] = (stock_df['MA20'].shift(1) > stock_df['MA60'].shift(1)) & (stock_df['MA20'] < stock_df['MA60'])
 
-            # --- 8. Plotly 차트 (캔들스틱 + 이동평균선 + 매매신호 + 거래량) ---
-            st.markdown("### 📈 주가 및 거래량 추이")
-            # 2개의 행(차트 2층)을 가지는 서브플롯을 만듭니다. (7:3 비율)
-            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+            # --- 8. Plotly 차트 (캔들스틱 + 이동평균선 + 매매신호 + 보조지표 + 거래량) ---
+            st.markdown("### 📈 주가 및 보조지표 추이")
             
-            # 캔들스틱 차트 추가 (주가의 시가, 고가, 저가, 종가를 한눈에 표시)
+            # 서브플롯 구성 정의
+            rows = 2
+            row_heights = [0.7, 0.3]
+            specs = [[{"secondary_y": False}], [{"secondary_y": False}]]
+            
+            if show_rsi:
+                rows += 1
+                row_heights = [0.55, 0.15, 0.3]
+                specs.insert(1, [{"secondary_y": False}])
+            if show_macd:
+                rows += 1
+                old_heights = row_heights
+                if show_rsi:
+                    row_heights = [0.45, 0.15, 0.15, 0.25]
+                else:
+                    row_heights = [0.55, 0.15, 0.30]
+                specs.insert(-1, [{"secondary_y": False}])
+
+            fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=row_heights)
+            
+            # 1행: 캔들스틱 차트
             fig.add_trace(go.Candlestick(
                 x=stock_df['Date'], open=stock_df['Open'], high=stock_df['High'], 
                 low=stock_df['Low'], close=stock_df['Close'], name='주가',
-                increasing_line_color='red', decreasing_line_color='blue' # 한국식 색상 적용(상승 빨강, 하락 파랑)
+                increasing_line_color='red', decreasing_line_color='blue'
             ), row=1, col=1)
 
-            # 이동평균선들을 차트에 추가합니다.
-            fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MA5'], name='MA5', line=dict(color='#E377C2', width=1)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MA10'], name='MA10', line=dict(color='#FFD700', width=1)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MA20'], name='MA20', line=dict(color='#2CA02C', width=1.5)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MA60'], name='MA60', line=dict(color='#9467BD', width=1.5)), row=1, col=1)
+            # 이동평균선 추가 (체크박스 확인)
+            if show_ma:
+                fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MA5'], name='MA5', line=dict(color='#E377C2', width=1)), row=1, col=1)
+                fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MA10'], name='MA10', line=dict(color='#FFD700', width=1)), row=1, col=1)
+                fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MA20'], name='MA20', line=dict(color='#2CA02C', width=1.5)), row=1, col=1)
+                fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MA60'], name='MA60', line=dict(color='#9467BD', width=1.5)), row=1, col=1)
 
             # --- 매매 신호 (골든/데드크로스) 추가 ---
             # 골든크로스 신호: 빨간색 위쪽 화살표
@@ -234,11 +275,34 @@ if submit_button:
                     textfont=dict(color='blue', size=12, family='Arial Black')
                 ), row=1, col=1)
             
-            # 거래량 막대 그래프 추가
-            fig.add_trace(go.Bar(x=stock_df['Date'], y=stock_df['Volume'], name='거래량', marker_color='gray', opacity=0.5), row=2, col=1)
+            # --- 보조 지표 차트 추가 ---
+            current_row = 2
+            
+            # RSI 차트
+            if show_rsi:
+                fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['RSI'], name='RSI', line=dict(color='orange', width=2)), row=current_row, col=1)
+                # 과매수/과매도선
+                fig.add_hline(y=70, line_dash="dash", line_color="red", row=current_row, col=1)
+                fig.add_hline(y=30, line_dash="dash", line_color="blue", row=current_row, col=1)
+                fig.update_yaxes(title_text="RSI", range=[0, 100], row=current_row, col=1)
+                current_row += 1
+            
+            # MACD 차트
+            if show_macd:
+                fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['MACD'], name='MACD', line=dict(color='blue', width=1.5)), row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=stock_df['Date'], y=stock_df['Signal'], name='Signal', line=dict(color='orange', width=1.5)), row=current_row, col=1)
+                # MACD 히스토그램 (막대그래프)
+                colors = ['red' if val >= 0 else 'blue' for val in stock_df['MACD_Hist']]
+                fig.add_trace(go.Bar(x=stock_df['Date'], y=stock_df['MACD_Hist'], name='MACD Hist', marker_color=colors, opacity=0.7), row=current_row, col=1)
+                fig.update_yaxes(title_text="MACD", row=current_row, col=1)
+                current_row += 1
+
+            # 거래량 막대 그래프 추가 (항상 마지막 행)
+            fig.add_trace(go.Bar(x=stock_df['Date'], y=stock_df['Volume'], name='거래량', marker_color='gray', opacity=0.5), row=current_row, col=1)
+            fig.update_yaxes(title_text="거래량", row=current_row, col=1)
             
             # 레이아웃(크기, 여백, 아래 슬라이더 숨기기 등) 설정
-            fig.update_layout(height=600, showlegend=True, xaxis_rangeslider_visible=False, margin=dict(t=20, b=20, l=20, r=20))
+            fig.update_layout(height=400 + (rows * 100), showlegend=True, xaxis_rangeslider_visible=False, margin=dict(t=20, b=20, l=20, r=20))
             fig.update_xaxes(tickformat="%Y-%m-%d") # 날짜 형식 지정
             st.plotly_chart(fig, use_container_width=True) # 화면에 차트 표시
             
