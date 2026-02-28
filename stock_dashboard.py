@@ -34,15 +34,19 @@ st.markdown("""
 
 st.title("📈 주식 시장 데이터 조회 및 다운로드 앱")
 
-# --- 헬퍼 함수: 지표 직접 그리기 (색상 강조용) ---
+# --- 헬퍼 함수: 지표 직접 그리기 (색상 강조 및 도움말 추가) ---
 def draw_custom_metric(col, label, value, color="#31333F", help_text=""):
     """
     st.metric 대신 사용하는 커스텀 HTML 지표 함수입니다.
-    색상을 확실하게 강제하기 위해 사용합니다.
+    도움말 아이콘(❔)과 마우스 오버 툴팁을 제공합니다.
     """
+    help_icon = f'<span style="cursor:help; margin-left:4px; font-size: 0.7rem; color: #999;" title="{help_text}">❔</span>' if help_text else ""
     html_code = f"""
     <div style="display: flex; flex-direction: column; align-items: flex-start; padding: 5px;">
-        <span style="font-size: 0.8rem; color: #555; margin-bottom: 2px;" title="{help_text}">{label}</span>
+        <div style="display: flex; align-items: center; margin-bottom: 2px;">
+            <span style="font-size: 0.8rem; color: #555;">{label}</span>
+            {help_icon}
+        </div>
         <span style="font-size: 1.5rem; font-weight: bold; color: {color}; line-height: 1.2;">{value}</span>
     </div>
     """
@@ -116,7 +120,7 @@ m_col1, m_col2, m_col3, m_col4 = st.columns([1, 1, 1, 3])
 if sentiment["fng_score"] is not None:
     score = sentiment["fng_score"]
     fng_color = "#FF4B4B" if score < 25 else "#FFAA00" if score < 45 else "#31333F" if score < 55 else "#AAFF00" if score < 75 else "#2CA02C"
-    draw_custom_metric(m_col1, "Fear & Greed Index", f"{score:.1f}", color=fng_color, help_text=f"CNN 공포와 탐욕 지수: {sentiment['fng_text']}")
+    draw_custom_metric(m_col1, "Fear & Greed Index", f"{score:.1f}", color=fng_color, help_text="CNN 제공 시장 심리 지수입니다. 0(극도의 공포) ~ 100(극도의 탐욕) 사이로 표시됩니다.")
 else:
     m_col1.warning("F&G 로드 실패")
 
@@ -124,16 +128,15 @@ else:
 if sentiment["vix_score"] is not None:
     vix_val = sentiment["vix_score"]
     vix_color = "#31333F" if vix_val < 20 else "#FFAA00" if vix_val < 30 else "#FF4B4B"
-    draw_custom_metric(m_col2, "VIX (미국 공포지수)", f"{vix_val:.2f}", color=vix_color, help_text="S&P 500 변동성 지수입니다.")
+    draw_custom_metric(m_col2, "VIX (미국 공포지수)", f"{vix_val:.2f}", color=vix_color, help_text="S&P 500의 향후 30일간 기대 변동성입니다. 20 이상이면 불안, 30 이상이면 극심한 패닉으로 해석합니다.")
 else:
     m_col2.warning("VIX 로드 실패")
 
 # VKOSPI 지수 표시 (한국)
 if sentiment["vkospi_score"] is not None:
     vk_val = sentiment["vkospi_score"]
-    # VKOSPI 기준 (보통 20~25 이상이면 불안 가중)
     vk_color = "#31333F" if vk_val < 20 else "#FFAA00" if vk_val < 25 else "#FF4B4B"
-    draw_custom_metric(m_col3, "VKOSPI (한국 공포지수)", f"{vk_val:.2f}", color=vk_color, help_text="코스피 200 변동성 지수입니다.")
+    draw_custom_metric(m_col3, "VKOSPI (한국 공포지수)", f"{vk_val:.2f}", color=vk_color, help_text="코스피 200 옵션 가격을 바탕으로 한 향후 30일간의 예상 변동성입니다. 30이 넘으면 시장이 패닉 상태임을 의미하며 역사적 최고치는 약 71입니다.")
 else:
     m_col3.warning("VKOSPI 로드 실패")
 
@@ -150,6 +153,30 @@ with m_col4:
         st.write(status_msg.get(sentiment["fng_text"], "시장 데이터를 분석 중입니다."))
     else:
         st.write("시장 심리 데이터를 불러올 수 없습니다.")
+
+# 시장 심리 지수 가이드 expander 추가
+with st.expander("❔ 시장 심리 상태 지표 상세 설명 가이드"):
+    st.markdown("""
+    ### 📊 지표별 상세 가이드
+    
+    #### 1. CNN Fear & Greed Index
+    - **개요**: 미국 시장의 7가지 지표(주가 강도, 옵션 수요 등)를 종합한 심리 지수입니다.
+    - **기준**: 0~25(극도 공포), 25~45(공포), 45~55(중립), 55~75(탐욕), 75~100(극도 탐욕)
+    - **활용**: "남들이 공포에 떨 때 사고, 탐욕스러울 때 팔아라"는 역발상 투자 지표로 자주 쓰입니다.
+
+    #### 2. VIX (미국 공포지수)
+    - **개요**: S&P 500 지수 옵션의 변동성을 나타내는 지표입니다.
+    - **기준**: **20 미만**(안정), **20~30**(불안 가중), **30 이상**(심각한 패닉/폭락장).
+    - **특징**: 주가지수와 반대로 움직이는 경향이 있어 '공포지수'라 부릅니다.
+
+    #### 3. VKOSPI (한국 공포지수)
+    - **개요**: 코스피 200 옵션 가격을 기반으로 한 한국판 변동성 지수입니다.
+    - **기준**: **20 미만**(평온), **20~30**(불안), **30 이상**(패닉 상태).
+    - **역사적 수치**: 2020년 팬데믹 당시 최고 **71.39**를 기록한 바 있습니다. 수치가 높을수록 "지금 시장이 매우 두려워하고 있다"는 뜻입니다.
+
+    ---
+    💡 **전문가 팁**: 공포지수가 최고조에 달했을 때가 종종 역사적인 저점(매수 기회)인 경우가 많습니다. 하지만 높은 변동성은 큰 손실을 초래할 수 있으니 주의 깊게 관찰하세요!
+    """)
 
 st.divider()
 
