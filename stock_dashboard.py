@@ -41,15 +41,8 @@ def draw_custom_metric(col, label, value, color="#31333F", help_text=""):
     도움말 아이콘(❔)과 마우스 오버 툴팁을 제공합니다.
     """
     help_icon = f'<span style="cursor:help; margin-left:4px; font-size: 0.7rem; color: #999;" title="{help_text}">❔</span>' if help_text else ""
-    html_code = f"""
-    <div style="display: flex; flex-direction: column; align-items: flex-start; padding: 5px;">
-        <div style="display: flex; align-items: center; margin-bottom: 2px;">
-            <span style="font-size: 0.8rem; color: #555;">{label}</span>
-            {help_icon}
-        </div>
-        <span style="font-size: 1.5rem; font-weight: bold; color: {color}; line-height: 1.2;">{value}</span>
-    </div>
-    """
+    # HTML 코드 내 공백/들여쓰기가 있으면 마크다운이 코드로 오해할 수 있어 한 줄로 결합합니다.
+    html_code = f'<div style="display: flex; flex-direction: column; align-items: flex-start; padding: 5px;"><div style="display: flex; align-items: center; margin-bottom: 2px;"><span style="font-size: 0.8rem; color: #555; white-space: nowrap;">{label}</span>{help_icon}</div><span style="font-size: 1.2rem; font-weight: bold; color: {color}; line-height: 1.1; white-space: nowrap;">{value}</span></div>'
     col.markdown(html_code, unsafe_allow_html=True)
 
 # st.info: 사용자에게 파란색 박스로 안내 메시지를 표시합니다.
