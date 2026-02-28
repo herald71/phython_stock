@@ -197,7 +197,8 @@ if submit_button:
                 delta = data.diff()
                 gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
                 loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-                rs = gain / loss
+                # 0으로 나누기 방지
+                rs = gain / loss.replace(0, 0.001)
                 return 100 - (100 / (1 + rs))
             
             stock_df['RSI'] = calculate_rsi(stock_df['Close'])
