@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import io
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import requests
+import json
 
 # 필수 라이브러리 설치 안내:
 # streamlit: 웹 대시보드 제작용 라이브러리
@@ -49,6 +51,109 @@ def draw_custom_metric(col, label, value, color="#31333F", help_text=""):
 # st.info: 사용자에게 파란색 박스로 안내 메시지를 표시합니다.
 st.info("💡 **이용 가이드**: 사이드바에서 국가를 선택한 후 종목명이나 티커(예: 삼성전자, AAPL)를 입력하고 '조회하기' 버튼을 누르세요.")
 
+# --- 시장 심리 지수 (공포지수) 섹션 추가 ---
+@st.cache_data(ttl=3600) # 1시간마다 갱신
+def get_market_sentiment():
+    """
+    CNN Fear & Greed Index, VIX, VKOSPI 지수를 가져오는 함수입니다.
+    """
+    sentiment_data = {
+        "fng_score": None, "fng_text": "N/A", 
+        "vix_score": None, "vkospi_score": None
+    }
+    
+    # 1. CNN Fear & Greed Index
+    try:
+        # CNN API는 이제 더 정교한 헤더를 요구할 수 있습니다.
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Referer': 'https://www.cnn.com/markets/fear-and-greed'
+        }
+        url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata/"
+        r = requests.get(url, headers=headers, timeout=5)
+        if r.status_code == 200:
+            data = r.json()
+            sentiment_data["fng_score"] = data['fear_and_greed']['score']
+            sentiment_data["fng_text"] = data['fear_and_greed']['rating'].upper()
+    except Exception:
+        pass
+
+    # 2. VIX 지수 (미국)
+    try:
+        vix_df = fdr.DataReader('VIX') # fdr.DataReader('VIX') 가 더 안정적일 수 있음
+        if not vix_df.empty:
+            sentiment_data["vix_score"] = vix_df.iloc[-1]['Close']
+    except Exception:
+        pass
+
+    # 3. VKOSPI 지수 (한국) - Naver SISE 페이지에서 추출 (정확한 변동성 지수)
+    try:
+        from bs4 import BeautifulSoup
+        # VKOSPI의 네이버 금융 코드 (KPI200VOL)
+        vk_url = "https://finance.naver.com/sise/sise_index.naver?code=KPI200VOL"
+        vk_headers = {'User-Agent': 'Mozilla/5.0'}
+        vk_r = requests.get(vk_url, headers=vk_headers, timeout=5)
+        if vk_r.status_code == 200:
+            soup = BeautifulSoup(vk_r.text, 'html.parser')
+            quotient_div = soup.select_one('#quotient')
+            if quotient_div:
+                # quotient 내부 텍스트를 줄바꿈으로 나누면 세 번째 줄에 실제 변동성 지수가 있습니다.
+                # (예: ['', '6,244.13', '63.14 -1.00%상승', '']) -> '63.14' 추출
+                q_text = quotient_div.text.split('\n')
+                if len(q_text) >= 3:
+                    val_str = q_text[2].split()[0] # '63.14' 부분만 가져오기
+                    sentiment_data["vkospi_score"] = float(val_str.replace(',', ''))
+    except Exception:
+        pass
+        
+    return sentiment_data
+
+# 상단에 시장 심리 지수 표시
+st.markdown("### 🌐 현재 시장 심리 상태 (Market Sentiment)")
+sentiment = get_market_sentiment()
+m_col1, m_col2, m_col3, m_col4 = st.columns([1, 1, 1, 3])
+
+# Fear & Greed Index 표시
+if sentiment["fng_score"] is not None:
+    score = sentiment["fng_score"]
+    fng_color = "#FF4B4B" if score < 25 else "#FFAA00" if score < 45 else "#31333F" if score < 55 else "#AAFF00" if score < 75 else "#2CA02C"
+    draw_custom_metric(m_col1, "Fear & Greed Index", f"{score:.1f}", color=fng_color, help_text=f"CNN 공포와 탐욕 지수: {sentiment['fng_text']}")
+else:
+    m_col1.warning("F&G 로드 실패")
+
+# VIX 지수 표시 (미국)
+if sentiment["vix_score"] is not None:
+    vix_val = sentiment["vix_score"]
+    vix_color = "#31333F" if vix_val < 20 else "#FFAA00" if vix_val < 30 else "#FF4B4B"
+    draw_custom_metric(m_col2, "VIX (미국 공포지수)", f"{vix_val:.2f}", color=vix_color, help_text="S&P 500 변동성 지수입니다.")
+else:
+    m_col2.warning("VIX 로드 실패")
+
+# VKOSPI 지수 표시 (한국)
+if sentiment["vkospi_score"] is not None:
+    vk_val = sentiment["vkospi_score"]
+    # VKOSPI 기준 (보통 20~25 이상이면 불안 가중)
+    vk_color = "#31333F" if vk_val < 20 else "#FFAA00" if vk_val < 25 else "#FF4B4B"
+    draw_custom_metric(m_col3, "VKOSPI (한국 공포지수)", f"{vk_val:.2f}", color=vk_color, help_text="코스피 200 변동성 지수입니다.")
+else:
+    m_col3.warning("VKOSPI 로드 실패")
+
+# 상태 설명 메시지
+with m_col4:
+    if sentiment["fng_score"] is not None:
+        status_msg = {
+            "EXTREME FEAR": "😱 **극도의 공포**: 시장이 매우 비관적입니다. 과매도 구간일 가능성이 큽니다.",
+            "FEAR": "😰 **공포**: 투자자들이 위축되어 있습니다. 조심스러운 접근이 필요합니다.",
+            "NEUTRAL": "😐 **중립**: 시장 성향이 뚜렷하지 않은 상태입니다.",
+            "GREED": "😏 **탐욕**: 시장이 다소 과열되어 있습니다. 수익 실현을 고민할 때입니다.",
+            "EXTREME GREED": "🤑 **극도의 탐욕**: 시장이 매우 낙관적이며 과열되었습니다. 거품을 경계해야 합니다."
+        }
+        st.write(status_msg.get(sentiment["fng_text"], "시장 데이터를 분석 중입니다."))
+    else:
+        st.write("시장 심리 데이터를 불러올 수 없습니다.")
+
+st.divider()
+
 # --- 2. 종목 매핑을 위한 데이터 로딩 (한국 & 미국) ---
 # @st.cache_data: 데이터를 한 번 불러오면 메모리에 저장(캐싱)하여, 다음에 조회할 때 속도를 훨씬 빠르게 만듭니다.
 @st.cache_data
@@ -75,24 +180,38 @@ def load_stock_list(market_type):
             return df_us
 
 # --- 3. 사이드바 UI 구성 ---
-# st.sidebar.form: 왼쪽 사이드바에 입력 폼을 만듭니다. 버튼을 누르기 전까지는 코드가 실행되지 않도록 막아줍니다.
+st.sidebar.header("🔍 검색 설정")
+
+# 국가 선택 (라디오 버튼) - 폼 외부에 두어 즉시 반응하게 합니다.
+market_choice = st.sidebar.radio("국가 선택", ["한국", "미국"], horizontal=True)
+
+# 조회 기간 선택 (새 기능 추가)
+period_choice = st.sidebar.radio("조회 기간 선택", ["1년", "3년", "5년", "10년", "사용자 설정"], horizontal=True)
+
+# 선택된 기간에 따라 기본 시작일 계산
+default_end = datetime.today().date()
+if period_choice == "1년":
+    default_start = default_end - timedelta(days=365)
+elif period_choice == "3년":
+    default_start = default_end - timedelta(days=365*3)
+elif period_choice == "5년":
+    default_start = default_end - timedelta(days=365*5)
+elif period_choice == "10년":
+    default_start = default_end - timedelta(days=365*10)
+else:
+    # '사용자 설정'이거나 기타 경우 기본 1년
+    default_start = default_end - timedelta(days=365)
+
+# 종목 리스트 미리 로드
+df_listing = load_stock_list(market_choice)
+
+# 나머지 설정은 폼(Form)으로 묶어서 '조회하기' 클릭 시 한꺼번에 실행되도록 합니다.
 with st.sidebar.form("search_form"):
-    st.header("🔍 검색 설정")
-    
-    # st.radio: 선택지를 제공합니다. (한국/미국 중 하나 선택)
-    market_choice = st.radio("국가 선택", ["한국", "미국"], horizontal=True)
-    
-    # 위에서 정의한 함수를 사용하여 종목 리스트를 미리 로드합니다.
-    df_listing = load_stock_list(market_choice)
-    
     # st.text_input: 사용자가 텍스트(종목명 또는 코드)를 입력할 수 있는 칸입니다.
     default_input = "삼성전자" if market_choice == "한국" else "AAPL"
     stock_input = st.text_input("종목명 또는 티커 입력", value=default_input)
 
     # st.date_input: 달력 모양의 입력을 통해 날자로 범위를 설정합니다.
-    # 오늘(datetime.today())로부터 1년 전(timedelta(days=365))을 기본값으로 설정합니다.
-    default_end = datetime.today().date()
-    default_start = default_end - timedelta(days=365)
     start_date = st.date_input("시작일", value=default_start)
     end_date = st.date_input("종료일", value=default_end)
     
