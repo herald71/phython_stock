@@ -125,7 +125,7 @@ def download_stock_data(ticker, ticker_name, start_date, end_date):
             error_msg = "서버 응답 오류 (데이터 공급처 세션 만료 혹은 일시적 오류). 1~2분 후 다시 시도해 주세요."
         return "Failed", error_msg, None
 
-def create_zip_and_summary(results_list):
+def create_zip_and_summary(results_list, start_date_str, end_date_str):
     """Creates a ZIP file and a summary Excel file from the results"""
     zip_buffer = io.BytesIO()
     summary_data = []
@@ -145,7 +145,7 @@ def create_zip_and_summary(results_list):
                 excel_buffer = io.BytesIO()
                 clean_sheet = f"{name}_{ticker}"[:31]
                 df.to_excel(excel_buffer, sheet_name=clean_sheet)
-                filename = f"{name}_{ticker}.xlsx"
+                filename = f"{name}_{start_date_str}_{end_date_str}.xlsx"
                 zip_file.writestr(filename, excel_buffer.getvalue())
         
         # Add summary file to ZIP
@@ -319,7 +319,9 @@ if st.button("🚀 데이터 다운로드 시작") and download_list:
     
     # Prepare ZIP download
     with st.spinner("파일 압축 중..."):
-        zip_data, summary_data = create_zip_and_summary(all_results)
+        s_date_str = start_date.strftime("%Y%m%d") if hasattr(start_date, 'strftime') else start_date
+        e_date_str = end_date.strftime("%Y%m%d") if hasattr(end_date, 'strftime') else end_date
+        zip_data, summary_data = create_zip_and_summary(all_results, s_date_str, e_date_str)
         
     col_dl1, col_dl2 = st.columns(2)
     with col_dl1:
