@@ -59,17 +59,32 @@ CACHE_DIR = 'cache_data'
 if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR)
 
-# OAuth2 인증 정보 (보안을 위해 .streamlit/secrets.toml 사용)
-# 로컬 테스트 시에는 .streamlit/secrets.toml 파일에 정보를 넣으세요.
-try:
-    CLIENT_ID = st.secrets["google_drive"]["client_id"]
-    CLIENT_SECRET = st.secrets["google_drive"]["client_secret"]
-    REFRESH_TOKEN = st.secrets["google_drive"]["refresh_token"]
-except:
-    # Secrets가 설정되지 않은 경우 초기값 (사용자 안내용)
-    CLIENT_ID = None
-    CLIENT_SECRET = None
-    REFRESH_TOKEN = None
+# 구글 드라이브 인증 정보를 통합 관리합니다.
+def get_all_secrets():
+    """모든 경로(st.secrets, 상수 등)를 통해 인증 정보를 수집합니다."""
+    creds = {
+        "client_id": None, "client_secret": None, "refresh_token": None,
+        "token_uri": "https://oauth2.googleapis.com/token"
+    }
+    
+    # 1. st.secrets 확인
+    try:
+        if "google_drive" in st.secrets:
+            s_dict = st.secrets["google_drive"]
+            # Streamlit의 Secret 객체를 일반 dict처럼 다룰 수 있게 변환
+            for k in creds.keys():
+                if k in s_dict:
+                    creds[k] = s_dict[k]
+    except:
+        pass
+        
+    return creds
+
+# 초기 로딩 시 확인
+_tmp_creds = get_all_secrets()
+CLIENT_ID = _tmp_creds["client_id"]
+CLIENT_SECRET = _tmp_creds["client_secret"]
+REFRESH_TOKEN = _tmp_creds["refresh_token"]
 
 # --- 4. 구글 드라이브 서비스 생성 (쓰레드 세이프) ---
 thread_local = threading.local()
@@ -78,38 +93,26 @@ thread_local = threading.local()
 def get_google_creds():
     """구글 인증 정보를 한 번만 생성하여 캐싱합니다."""
     try:
-        # 1. st.secrets 확인
-        google_secrets = None
-        if "google_drive" in st.secrets:
-            google_secrets = st.secrets["google_drive"]
-        
-        if not google_secrets:
-            # secrets.toml에 없는 경우 수동 로드 시도 (상수값 활용)
-            creds_dict = {
-                "client_id": CLIENT_ID, 
-                "client_secret": CLIENT_SECRET,
-                "refresh_token": REFRESH_TOKEN, 
-                "token_uri": "https://oauth2.googleapis.com/token"
-            }
-        else:
-            # secrets.toml에 있는 경우 필요한 필드 추출 및 기본값 설정
-            creds_dict = {
-                "client_id": google_secrets.get("client_id"),
-                "client_secret": google_secrets.get("client_secret"),
-                "refresh_token": google_secrets.get("refresh_token"),
-                "token_uri": google_secrets.get("token_uri", "https://oauth2.googleapis.com/token")
-            }
+        creds_dict = get_all_secrets()
 
         # 필수 필드 누락 여부 확인
-        missing_fields = [k for k, v in creds_dict.items() if not v]
+        missing_fields = [k for k in ["client_id", "client_secret", "refresh_token"] if not creds_dict.get(k)]
         if missing_fields:
-            st.error(f"❌ 구글 드라이브 인증 정보 누락: {', '.join(missing_fields)}")
+            st.error(f"❌ 구글 드라이브 인증 정보가 부족합니다: {', '.join(missing_fields)}")
+            st.info("💡 **해결 방법**: Streamlit Cloud 관리 화면의 **Settings > Secrets**에 정보를 입력해 주세요.\n\n"
+                    "```toml\n"
+                    "[google_drive]\n"
+                    "client_id = \"...\"\n"
+                    "client_secret = \"...\"\n"
+                    "refresh_token = \"...\"\n"
+                    "token_uri = \"https://oauth2.googleapis.com/token\"\n"
+                    "```")
             return None
 
         from google.oauth2.credentials import Credentials
         return Credentials.from_authorized_user_info(creds_dict, scopes=['https://www.googleapis.com/auth/drive.file'])
     except Exception as e:
-        st.error(f"구글 인증 생성 실패: {e}")
+        st.error(f"❌ 구글 인증 생성 실패: {e}")
         return None
 
 def get_drive_service():
