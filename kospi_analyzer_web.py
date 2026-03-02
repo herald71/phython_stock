@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import io
 import json
 import concurrent.futures
+import threading
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
@@ -51,7 +52,7 @@ st.markdown("""
 
 # --- 3. 상수 정의 및 환경 설정 ---
 CSV_FILE = 'KOSPI200_with_KSIC_2026.csv'
-GOOGLE_DRIVE_FOLDER_ID = '1Bkzmh-jlcOnmgOzS3I8fJyHmwsta_oAG'
+GOOGLE_DRIVE_FOLDER_ID = '13STM_0_Gn4FfMUR_6tjjvIA8VyUTwtbH'
 CACHE_DIR = 'cache_data'
 
 # 로컬 캐시 폴더 생성
@@ -70,20 +71,19 @@ except:
     CLIENT_SECRET = None
     REFRESH_TOKEN = None
 
-# --- 4. 구글 드라이브 서비스 생성 (싱글톤 패턴) ---
+# --- 4. 구글 드라이브 서비스 생성 (쓰레드 세이프) ---
+thread_local = threading.local()
+
 @st.cache_resource
-def get_drive_service_singleton():
-    """구글 드라이브 서비스 객체를 한 번만 생성하여 재사용합니다."""
+def get_google_creds():
+    """구글 인증 정보를 한 번만 생성하여 캐싱합니다."""
     creds_data = None
-    
-    # 1. Streamlit Secrets 확인
     try:
         if "google_drive" in st.secrets:
             creds_data = st.secrets["google_drive"]
     except:
         pass
 
-    # 2. 로컬 변수 사용
     if creds_data is None:
         creds_data = {
             "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET,
@@ -92,34 +92,41 @@ def get_drive_service_singleton():
 
     try:
         from google.oauth2.credentials import Credentials
-        creds = Credentials.from_authorized_user_info(creds_data, scopes=['https://www.googleapis.com/auth/drive.file'])
-        return build('drive', 'v3', credentials=creds)
+        return Credentials.from_authorized_user_info(creds_data, scopes=['https://www.googleapis.com/auth/drive.file'])
     except Exception as e:
-        st.error(f"구글 서비스 생성 실패: {e}")
+        st.error(f"구글 인증 생성 실패: {e}")
         return None
 
-# 전역 서비스 객체 (최초 1회 생성)
-drive_service = get_drive_service_singleton()
+def get_drive_service():
+    """각 쓰레드별로 별도의 드라이브 서비스 객체를 생성하여 SSL 오류를 방지합니다."""
+    if not hasattr(thread_local, "service"):
+        creds = get_google_creds()
+        if creds:
+            thread_local.service = build('drive', 'v3', credentials=creds)
+        else:
+            thread_local.service = None
+    return thread_local.service
 
 def download_file_from_drive(file_name, use_cache=True):
-    """구글 드라이브에서 파일을 다운로드합니다. 싱글톤 서비스를 사용하여 오버헤드를 줄입니다."""
+    """구글 드라이브에서 파일을 다운로드합니다."""
     local_path = os.path.join(CACHE_DIR, file_name)
     
     if use_cache and os.path.exists(local_path):
         with open(local_path, 'rb') as f:
             return io.BytesIO(f.read())
 
-    if not drive_service: return None
+    service = get_drive_service()
+    if not service: return None
 
     try:
         query = f"name = '{file_name}' and '{GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false"
-        results = drive_service.files().list(q=query, fields="files(id)").execute()
+        results = service.files().list(q=query, fields="files(id)").execute()
         files = results.get('files', [])
         
         if not files: return None
             
         file_id = files[0]['id']
-        request = drive_service.files().get_media(fileId=file_id)
+        request = service.files().get_media(fileId=file_id)
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
         done = False
@@ -136,142 +143,32 @@ def download_file_from_drive(file_name, use_cache=True):
 
 def upload_file_to_drive(file_name, df):
     """DataFrame을 CSV로 변환하여 구글 드라이브와 로컬 캐시에 업로드/저장합니다."""
-    # 1. 로컬 캐시 저장
     local_path = os.path.join(CACHE_DIR, file_name)
-    df.to_csv(local_path, encoding='utf-8-sig') # 한글 깨짐 방지 위해 utf-8-sig 사용
+    df.to_csv(local_path, encoding='utf-8-sig')
     
-    # 2. 구글 드라이브 업로드
     csv_buffer = io.BytesIO()
     df.to_csv(csv_buffer, index=True, encoding='utf-8-sig')
     csv_buffer.seek(0)
     upload_raw_file_to_drive(file_name, csv_buffer, "text/csv")
 
-
-# --- 4. 데이터 로딩 함수 ---
-# @st.cache_data를 사용하여 이미 읽은 데이터는 캐시에 저장해 속도를 높입니다.
-@st.cache_data
-def load_info_data():
-    """KOSPI 200 종목 기본 정보(종목코드, 업종 등)를 불러옵니다."""
-    if not os.path.exists(CSV_FILE):
-        return None
-    try:
-        df = pd.read_csv(CSV_FILE)
-        # 종목코드를 6자리 문자열(예: 005930)로 맞춥니다.
-        df['종목코드'] = df['종목코드'].astype(str).str.zfill(6)
-        return df
-    except Exception as e:
-        st.error(f"CSV 파일을 읽는 중 오류 발생: {e}")
-        return None
-
-# 종목 정보를 불러와 df_info에 저장합니다.
-df_info = load_info_data()
-
-# --- 5. 주요 로직 함수들 ---
-
-def run_update_data(df_info):
-    """
-    각 종목의 과거 가격 데이터를 최신으로 업데이트하는 함수입니다.
-    오늘 이미 업데이트를 완료했다면 슈퍼 패스트 모드로 즉시 종료합니다.
-    """
-    status_text = st.empty()
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    sync_info_file = "last_sync_info.json"
-
-    # --- 슈퍼 패스트 체크 ---
-    status_text.info("🚀 동기화 상태 확인 중 (슈퍼 패스트)...")
-    sync_info_buffer = download_file_from_drive(sync_info_file)
-    if sync_info_buffer:
-        try:
-            sync_info = json.loads(sync_info_buffer.getvalue().decode('utf-8'))
-            if sync_info.get("last_sync_date") == today_str:
-                status_text.success(f"✨ 이미 최신 상태입니다! (마지막 동기화: {today_str})")
-                time.sleep(2)
-                status_text.empty()
-                return
-        except:
-            pass
-
-    progress_bar = st.progress(0)
-    total_items = len(df_info)
-    raw_today_str = datetime.now().strftime("%Y%m%d")
-    
-    for idx, row in df_info.iterrows():
-        code, name = row['종목코드'], row['종목명']
-        if pd.isna(code) or str(code).lower() == 'nan':
-            continue
-            
-        file_name = f"{code}.csv"
-        need_download = False
-        start_date_download = (datetime.now() - timedelta(days=365)).strftime("%Y%m%d")
-        end_date_download = raw_today_str
-        existing_df = None
-
-        # 구글 드라이브에서 파일 확인 및 다운로드
-        file_buffer = download_file_from_drive(file_name)
-        if file_buffer:
-            try:
-                existing_df = pd.read_csv(file_buffer, index_col=0, parse_dates=True)
-                if not existing_df.empty:
-                    last_date = existing_df.index[-1]
-                    next_date = last_date + timedelta(days=1)
-                    if next_date.date() <= datetime.now().date():
-                        start_date_download = next_date.strftime("%Y%m%d")
-                        need_download = True
-            except:
-                need_download = True
-        else:
-            need_download = True
-
-        if need_download:
-            status_text.text(f"📥 데이터를 가져오는 중: {name} ({idx+1}/{total_items})")
-            try:
-                time.sleep(0.1)
-                new_df = stock.get_market_ohlcv_by_date(start_date_download, end_date_download, code)
-                if not new_df.empty:
-                    if existing_df is not None and not existing_df.empty:
-                        combined_df = pd.concat([existing_df, new_df])
-                        combined_df = combined_df[~combined_df.index.duplicated(keep='last')]
-                        upload_file_to_drive(file_name, combined_df)
-                    else:
-                        upload_file_to_drive(file_name, new_df)
-            except Exception as e:
-                st.warning(f"⚠️ {name}({code}) 다운로드 실패: {e}")
-        
-        progress_bar.progress((idx + 1) / total_items)
-    
-    # --- 동기화 결과 기록 (슈퍼 패스트용) ---
-    new_sync_info = {"last_sync_date": today_str}
-    sync_info_json = json.dumps(new_sync_info)
-    
-    # BytesIO 객체로 변환하여 업로드
-    sync_buffer = io.BytesIO(sync_info_json.encode('utf-8'))
-    
-    # upload_file_to_drive 함수가 DataFrame을 받으므로 JSON 업로드를 위해 별도 처리 필요하지만
-    # 기존 업로드 함수를 범용으로 수정하여 사용
-    upload_raw_file_to_drive(sync_info_file, sync_buffer, "application/json")
-
-    status_text.success("✅ 모든 데이터가 최신 상태로 업데이트되었습니다!")
-    time.sleep(2)
-    status_text.empty()
-    progress_bar.empty()
-
 def upload_raw_file_to_drive(file_name, content_buffer, mime_type="text/csv"):
-    """DataFrame이 아닌 일반 바이너리 데이터를 구글 드라이브에 업로드합니다 (싱글톤 공유)."""
-    if not drive_service: return
+    """일반 바이너리 데이터를 구글 드라이브에 업로드합니다."""
+    service = get_drive_service()
+    if not service: return
 
     try:
         query = f"name = '{file_name}' and '{GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false"
-        results = drive_service.files().list(q=query, fields="files(id)").execute()
+        results = service.files().list(q=query, fields="files(id)").execute()
         files = results.get('files', [])
         
         media = MediaIoBaseUpload(content_buffer, mimetype=mime_type, resumable=True)
         
         if files:
             file_id = files[0]['id']
-            drive_service.files().update(fileId=file_id, media_body=media).execute()
+            service.files().update(fileId=file_id, media_body=media).execute()
         else:
             file_metadata = {'name': file_name, 'parents': [GOOGLE_DRIVE_FOLDER_ID]}
-            drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     except Exception as e:
         st.error(f"구글 드라이브 파일 업로드 오류 ({file_name}): {e}")
 
