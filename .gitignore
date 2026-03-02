@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Streamlit
+.streamlit/
+# .streamlit/ 폴더 전체가 무시되지만, 명시적으로 secrets는 더 중요함
+.streamlit/secrets.toml
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Private Keys & Credentials
+google_drive_key.json
+client_secret.json
+
+# App Data & Cache (Large files & local sync info)
+cache_data/
+data/
+*.csv
+*.xlsx
+last_sync_info.json
+
+# Exceptions (Keep these important config CSVs)
+!sp500_tickers_detailed.csv
+!KOSPI200_with_KSIC_2026.csv

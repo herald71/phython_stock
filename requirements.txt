@@ -1,0 +1,10 @@
+streamlit
+finance-datareader
+pykrx
+pandas
+plotly
+xlsxwriter
+openpyxl
+html5lib
+lxml
+beautifulsoup4
