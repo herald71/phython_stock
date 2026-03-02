@@ -9,7 +9,6 @@ import plotly.graph_objects as go
 import io
 import json
 import concurrent.futures
-from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
