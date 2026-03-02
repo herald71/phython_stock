@@ -64,13 +64,23 @@ CACHE_DIR = DATA_DIR  # 기존 데이터 디렉토리를 캐시로 사용
 
 # OAuth2 인증 정보 (보안을 위해 .streamlit/secrets.toml 사용)
 try:
-    CLIENT_ID = st.secrets["google_drive"]["client_id"]
-    CLIENT_SECRET = st.secrets["google_drive"]["client_secret"]
-    REFRESH_TOKEN = st.secrets["google_drive"]["refresh_token"]
+    if "google_drive" in st.secrets:
+        # st.secrets 객체를 일반 딕셔너리로 변환하여 호환성 문제 방지
+        google_secrets = dict(st.secrets["google_drive"])
+        CLIENT_ID = google_secrets.get("client_id")
+        CLIENT_SECRET = google_secrets.get("client_secret")
+        REFRESH_TOKEN = google_secrets.get("refresh_token")
+        TOKEN_URI = google_secrets.get("token_uri", "https://oauth2.googleapis.com/token")
+    else:
+        CLIENT_ID = None
+        CLIENT_SECRET = None
+        REFRESH_TOKEN = None
+        TOKEN_URI = "https://oauth2.googleapis.com/token"
 except:
     CLIENT_ID = None
     CLIENT_SECRET = None
     REFRESH_TOKEN = None
+    TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 # --- 4. 구글 드라이브 서비스 생성 (쓰레드 세이프) ---
 thread_local = threading.local()
@@ -78,22 +88,22 @@ thread_local = threading.local()
 @st.cache_resource
 def get_google_creds():
     """구글 인증 정보를 한 번만 생성하여 캐싱합니다."""
-    creds_data = None
-    try:
-        if "google_drive" in st.secrets:
-            creds_data = st.secrets["google_drive"]
-    except:
-        pass
+    # 모든 필수 필드를 포함한 딕셔너리 구성
+    creds_dict = {
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "refresh_token": REFRESH_TOKEN,
+        "token_uri": TOKEN_URI
+    }
 
-    if creds_data is None:
-        creds_data = {
-            "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET,
-            "refresh_token": REFRESH_TOKEN, "token_uri": "https://oauth2.googleapis.com/token"
-        }
+    # 필수 필드 누락 여부 확인
+    if not all([creds_dict["client_id"], creds_dict["client_secret"], creds_dict["refresh_token"]]):
+        st.error("❌ 구글 드라이브 인증 정보(ID, Secret, Refresh Token)가 설정되지 않았습니다.")
+        return None
 
     try:
         from google.oauth2.credentials import Credentials
-        return Credentials.from_authorized_user_info(creds_data, scopes=['https://www.googleapis.com/auth/drive.file'])
+        return Credentials.from_authorized_user_info(creds_dict, scopes=['https://www.googleapis.com/auth/drive.file'])
     except Exception as e:
         st.error(f"구글 인증 생성 실패: {e}")
         return None
