@@ -77,22 +77,37 @@ thread_local = threading.local()
 @st.cache_resource
 def get_google_creds():
     """구글 인증 정보를 한 번만 생성하여 캐싱합니다."""
-    creds_data = None
     try:
+        # 1. st.secrets 확인
+        google_secrets = None
         if "google_drive" in st.secrets:
-            creds_data = st.secrets["google_drive"]
-    except:
-        pass
+            google_secrets = st.secrets["google_drive"]
+        
+        if not google_secrets:
+            # secrets.toml에 없는 경우 수동 로드 시도 (상수값 활용)
+            creds_dict = {
+                "client_id": CLIENT_ID, 
+                "client_secret": CLIENT_SECRET,
+                "refresh_token": REFRESH_TOKEN, 
+                "token_uri": "https://oauth2.googleapis.com/token"
+            }
+        else:
+            # secrets.toml에 있는 경우 필요한 필드 추출 및 기본값 설정
+            creds_dict = {
+                "client_id": google_secrets.get("client_id"),
+                "client_secret": google_secrets.get("client_secret"),
+                "refresh_token": google_secrets.get("refresh_token"),
+                "token_uri": google_secrets.get("token_uri", "https://oauth2.googleapis.com/token")
+            }
 
-    if creds_data is None:
-        creds_data = {
-            "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET,
-            "refresh_token": REFRESH_TOKEN, "token_uri": "https://oauth2.googleapis.com/token"
-        }
+        # 필수 필드 누락 여부 확인
+        missing_fields = [k for k, v in creds_dict.items() if not v]
+        if missing_fields:
+            st.error(f"❌ 구글 드라이브 인증 정보 누락: {', '.join(missing_fields)}")
+            return None
 
-    try:
         from google.oauth2.credentials import Credentials
-        return Credentials.from_authorized_user_info(creds_data, scopes=['https://www.googleapis.com/auth/drive.file'])
+        return Credentials.from_authorized_user_info(creds_dict, scopes=['https://www.googleapis.com/auth/drive.file'])
     except Exception as e:
         st.error(f"구글 인증 생성 실패: {e}")
         return None
