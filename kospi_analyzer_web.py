@@ -172,7 +172,114 @@ def upload_raw_file_to_drive(file_name, content_buffer, mime_type="text/csv"):
     except Exception as e:
         st.error(f"구글 드라이브 파일 업로드 오류 ({file_name}): {e}")
 
-@st.cache_data(show_spinner=False)
+# --- 5. 데이터 로딩 함수 ---
+@st.cache_data
+def load_info_data():
+    """KOSPI 200 종목 기본 정보를 불러옵니다."""
+    if not os.path.exists(CSV_FILE):
+        # 로컬에 없으면 드라이브에서 시도
+        file_buffer = download_file_from_drive(CSV_FILE)
+        if file_buffer:
+            try:
+                df = pd.read_csv(file_buffer)
+                df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
+                return df
+            except: return None
+        return None
+    try:
+        df = pd.read_csv(CSV_FILE)
+        df['종목코드'] = df['종목코드'].astype(str).str.zfill(6)
+        return df
+    except Exception as e:
+        st.error(f"CSV 파일을 읽는 중 오류 발생: {e}")
+        return None
+
+# 종목 정보를 불러와 df_info에 저장합니다.
+df_info = load_info_data()
+
+def run_update_data(df_info):
+    """
+    각 종목의 과거 가격 데이터를 최신으로 업데이트하는 함수입니다.
+    구글 드라이브 동기화 및 슈퍼 패스트 체크가 적용되었습니다.
+    """
+    status_text = st.empty()
+    today_str = datetime.now().strftime("%Y%m%d")
+    sync_info_file = "kospi_last_sync_info.json"
+
+    # --- 슈퍼 패스트 체크 (2시간 간격) ---
+    status_text.info("🚀 동기화 상태 확인 중 (슈퍼 패스트)...")
+    sync_info_buffer = download_file_from_drive(sync_info_file)
+    if sync_info_buffer:
+        try:
+            sync_info = json.loads(sync_info_buffer.getvalue().decode('utf-8'))
+            last_sync_str = sync_info.get("last_sync_time")
+            if last_sync_str:
+                last_sync_time = datetime.fromisoformat(last_sync_str)
+                if datetime.now() - last_sync_time < timedelta(hours=2):
+                    status_text.success(f"✨ 이미 최근에 업데이트되었습니다! (마지막: {last_sync_time.strftime('%H:%M')})")
+                    time.sleep(2)
+                    status_text.empty()
+                    return
+        except:
+            pass
+
+    progress_bar = st.progress(0)
+    total_items = len(df_info)
+    start_time = time.time()
+    
+    for idx, row in df_info.iterrows():
+        code, name = row['종목코드'], row['종목명']
+        if pd.isna(code): continue
+            
+        file_name = f"{code}.csv"
+        need_download = False
+        start_date_download = (datetime.now() - timedelta(days=365*2)).strftime("%Y%m%d")
+        end_date_download = today_str
+        existing_df = None
+
+        file_buffer = download_file_from_drive(file_name)
+        if file_buffer:
+            try:
+                existing_df = pd.read_csv(file_buffer, index_col=0, parse_dates=True)
+                if not existing_df.empty:
+                    last_date = existing_df.index[-1]
+                    if last_date.date() <= datetime.now().date():
+                        start_date_download = last_date.strftime("%Y%m%d")
+                        need_download = True
+            except:
+                need_download = True
+        else:
+            need_download = True
+
+        if need_download:
+            status_text.text(f"📥 데이터를 가져오는 중: {name} ({code}) [{idx+1}/{total_items}]")
+            try:
+                time.sleep(0.1) # 서버 부하 방지
+                new_df = stock.get_market_ohlcv_by_date(start_date_download, end_date_download, code)
+                
+                if not new_df.empty:
+                    if existing_df is not None and not existing_df.empty:
+                        combined_df = pd.concat([existing_df, new_df])
+                        combined_df = combined_df[~combined_df.index.duplicated(keep='last')]
+                        upload_file_to_drive(file_name, combined_df)
+                    else:
+                        upload_file_to_drive(file_name, new_df)
+            except Exception as e:
+                st.warning(f"⚠️ {name}({code}) 다운로드 실패: {e}")
+        
+        progress_bar.progress((idx + 1) / total_items)
+        
+    new_sync_info = {"last_sync_time": datetime.now().isoformat()}
+    sync_buffer = io.BytesIO(json.dumps(new_sync_info).encode('utf-8'))
+    upload_raw_file_to_drive(sync_info_file, sync_buffer, "application/json")
+
+    end_time = time.time()
+    status_text.success(f"✅ 데이터 업데이트 완료! (소요 시간: {int(end_time - start_time)}초)")
+    time.sleep(3)
+    status_text.empty()
+    progress_bar.empty()
+
+# --- 6. 수익률 계산 및 분석 로직 ---
 def calculate_returns(df_info, mode, period_days, start_date, end_date, target_sector):
     """
     모든 종목의 수익률을 계산합니다 (병렬 처리 + 결과 캐싱 적용).
