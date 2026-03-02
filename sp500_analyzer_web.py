@@ -261,9 +261,10 @@ def run_update_data(df_info):
                 existing_df = pd.read_csv(file_buffer, index_col=0, parse_dates=True)
                 if not existing_df.empty:
                     last_date = existing_df.index[-1]
-                    next_date = last_date + timedelta(days=1)
-                    if next_date.date() < datetime.now().date():
-                        start_date_download = next_date.strftime("%Y-%m-%d")
+                    # 마지막 데이터 날짜가 오늘이거나 그 이전이면 업데이트 시도 (어제 종가 반영 등)
+                    if last_date.date() <= datetime.now().date():
+                        # 마지막 날짜부터 다시 받아와서 중복 제거(keep='last') 로직으로 최신 종가 갱신
+                        start_date_download = last_date.strftime("%Y-%m-%d")
                         need_download = True
             except:
                 need_download = True
