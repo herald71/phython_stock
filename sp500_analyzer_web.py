@@ -10,6 +10,7 @@ import io
 import json
 import concurrent.futures
 import threading
+import toml
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
@@ -69,12 +70,30 @@ thread_local = threading.local()
 def get_google_creds():
     """구글 인증 정보를 한 번만 생성하여 캐싱합니다."""
     try:
-        if "google_drive" not in st.secrets:
-            st.error("❌ Streamlit 설정에서 'google_drive' 섹션을 찾을 수 없습니다. (.streamlit/secrets.toml 확인 필요)")
-            return None
+        # 1. st.secrets 확인
+        google_secrets = None
+        if "google_drive" in st.secrets:
+            google_secrets = st.secrets["google_drive"]
+        else:
+            # 2. st.secrets에 없을 경우 직접 toml 파일 로드 시도 (경로 문제 대비)
+            possible_paths = [
+                ".streamlit/secrets.toml",
+                os.path.join(os.getcwd(), ".streamlit/secrets.toml"),
+                "c:/Users/01999/Documents/source/파이썬주식분석프로그램/.streamlit/secrets.toml"
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    try:
+                        all_secrets = toml.load(path)
+                        google_secrets = all_secrets.get("google_drive")
+                        if google_secrets:
+                            break
+                    except:
+                        continue
         
-        # secrets 가져오기
-        google_secrets = st.secrets["google_drive"]
+        if not google_secrets:
+            st.error("❌ 설정에서 'google_drive' 섹션을 찾을 수 없습니다. (.streamlit/secrets.toml 확인 필요)")
+            return None
         
         # 필수 필드 추출 (안전하게)
         creds_dict = {
