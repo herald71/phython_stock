@@ -65,9 +65,6 @@ CACHE_DIR = DATA_DIR  # 기존 데이터 디렉토리를 캐시로 사용
 # --- 4. 구글 드라이브 서비스 생성 (쓰레드 세이프) ---
 thread_local = threading.local()
 
-# --- 4. 구글 드라이브 서비스 생성 (쓰레드 세이프) ---
-thread_local = threading.local()
-
 @st.cache_resource
 def get_google_creds():
     """구글 인증 정보를 한 번만 생성하여 캐싱합니다."""
