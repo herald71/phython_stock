@@ -19,6 +19,38 @@
 
 ---
 
+## 📁 프로젝트 구조 (Project Structure)
+
+이 프로젝트는 대시보드 어플리케이션, 데이터 분석기, 수집 유틸리티 등으로 구성되어 있습니다.
+
+### 🚀 메인 어플리케이션 (Main Apps)
+*   `stock_dashboard.py`: **[메인]** 한국/미국 주식 통합 분석 대시보드 (Streamlit)
+*   `kospi_analyzer_web.py`: KOSPI 200 종목 상세 분석 웹 서비스
+*   `sp500_analyzer_web.py`: S&P 500 종목 상세 분석 웹 서비스
+*   `stock_downloader_web.py`: 주식 데이터 다운로드 전용 웹 인터페이스
+
+### 🧠 분석 및 핸들러 (Analysis & Handlers)
+*   `kospi_analyzer.py`: KOSPI 데이터 분석 핵심 로직 루틴
+*   `drive_memo_handler.py`: Google Drive 연동 및 메모/데이터 관리 핸들러
+*   `stock_downloader_gui.py`: 주식 데이터 다운로드용 데스크톱 GUI 프로그램
+
+### 🛠️ 데이터 수집 및 유틸리티 (Data Fetching & Utils)
+*   `fetch_krx_api.py` / `fetch_naver_finance.py`: KRX 및 네이버 금융 데이터 수집 도구
+*   `index_download.py` / `download_indices.py`: 주요 지수 데이터 업데이트 스크립트
+*   `extract_kospi_tickers.py`: KOSPI 종목 리스트 추출 및 갱신 유틸리티
+*   `get_refresh_token.py`: Google API 권한 인증(토큰 갱신)용 도구
+
+### 🧪 테스트 및 디버깅 (Test & Debug)
+*   `test_*.py`: 각 모듈 및 API의 기능 검증을 위한 테스트 코드들
+*   `debug_*.py`: 데이터 병합, 스크레이핑 등 특정 기능 디버깅용 스크립트
+
+### 📂 주요 디렉토리 (Key Directories)
+*   `data/`: 수집된 원본 주식 데이터 저장소 (CSV 형식)
+*   `cache_data/`: 분석 결과 및 빠른 로딩을 위한 임시 캐시 데이터
+*   `.streamlit/`: Streamlit 전용 설정 및 보안 비밀값(secrets.toml) 관리
+
+---
+
 ## 🛠️ 설치 및 실행 가이드 (How to Run)
 
 복잡한 설정 없이 아래 순서대로 터미널에 복사 후 붙여넣어 보세요!
