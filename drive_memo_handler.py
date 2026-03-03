@@ -56,15 +56,28 @@ class DriveMemoHandler:
     def get_creds_dict_json(self):
         """인증 정보를 JSON 문자열로 반환합니다."""
         try:
+            # Streamlit Cloud와 로컬 환경 모두에서 안전하게 secrets를 가져옵니다.
             if 'google_drive' not in st.secrets: return None
+            
             creds_info = st.secrets["google_drive"]
+            
+            # secrets 객체(AttrDict)에서 개별 값을 안전하게 추출
+            client_id = creds_info.get("client_id")
+            client_secret = creds_info.get("client_secret")
+            refresh_token = creds_info.get("refresh_token")
+            token_uri = creds_info.get("token_uri", "https://oauth2.googleapis.com/token")
+            
+            if not all([client_id, client_secret, refresh_token]):
+                return None
+
             return json.dumps({
-                "client_id": creds_info.get("client_id"),
-                "client_secret": creds_info.get("client_secret"),
-                "refresh_token": creds_info.get("refresh_token"),
-                "token_uri": "https://oauth2.googleapis.com/token",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "token_uri": token_uri,
             })
-        except: return None
+        except Exception:
+            return None
 
     def get_drive_service(self):
         """인증된 드라이브 서비스 객체를 반환합니다."""
@@ -141,7 +154,24 @@ def show_memo_ui(folder_id, default_file="dashboard_memo.txt"):
     creds_json = handler.get_creds_dict_json()
     
     if not creds_json:
-        st.error("구글 드라이브 인증 정보를 `secrets.toml`에서 찾을 수 없습니다.")
+        st.error("⚠️ 구글 드라이브 인증 정보를 `secrets.toml` 또는 Streamlit Cloud 대시보드에서 찾을 수 없습니다.")
+        with st.expander("💡 해결 방법 (여기를 클릭하여 확인하세요)", expanded=True):
+            st.markdown("""
+            **Streamlit Cloud (웹)에서 배포 중인 경우:**
+            1. Streamlit Cloud 관리 화면에서 앱의 **Settings** -> **Secrets** 메뉴로 가세요.
+            2. 아래 내용을 그대로 복사해서 붙여넣으세요 (로컬의 `secrets.toml`에 있는 실제 값들입니다):
+            
+            ```toml
+            [google_drive]
+            client_id = "당신의_클라이언트_ID"
+            client_secret = "당신의_클라이언트_시크릿"
+            refresh_token = "당신의_리프레시_토큰"
+            token_uri = "https://oauth2.googleapis.com/token"
+            ```
+            
+            **로컬 PC에서 실행 중인 경우:**
+            - 프로젝트 폴더 내 `.streamlit/secrets.toml` 파일이 존재하고 위 내용이 포함되어 있는지 확인하세요.
+            """)
         return
 
     # 1. 파일 목록 가져오기
@@ -172,8 +202,6 @@ def show_memo_ui(folder_id, default_file="dashboard_memo.txt"):
                 st.rerun()
 
         st.caption(f"현재 편집 중: `{st.session_state.active_memo_file}`")
-        # 텍스트 에리어의 변경 사항을 바로 세션 상태에 반영하기 위해 key를 지정할 수도 있지만, 
-        # 여기서는 기존 방식대로 value와 저장 시점의 값을 사용합니다.
         new_content = st.text_area("내용", value=st.session_state.memo_content, height=200, label_visibility="collapsed")
         
         c1, c2, c3 = st.columns([4, 4, 2])
@@ -183,7 +211,6 @@ def show_memo_ui(folder_id, default_file="dashboard_memo.txt"):
                     if handler.upload_file(st.session_state.active_memo_file, io.BytesIO(new_content.encode('utf-8'))):
                         st.success("저장 완료!")
                         st.session_state.memo_content = new_content
-                        # 저장 후 로드 캐시 초기화는 upload_file 내부에서 처리함
                         time.sleep(0.5)
                         st.rerun()
                     else:
