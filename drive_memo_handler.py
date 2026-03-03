@@ -18,6 +18,20 @@ def _get_cached_drive_service(creds_dict_json):
         st.error(f"구글 서비스 생성 중 오류: {e}")
         return None
 
+@st.cache_data(ttl=600)
+def _get_cached_list(creds_json, folder_id):
+    """폴더 내의 파일 목록을 가져와 캐싱합니다 (전역 함수로 분리하여 UnhashableParamError 방지)."""
+    try:
+        creds_dict = json.loads(creds_json)
+        creds = Credentials.from_authorized_user_info(creds_dict, scopes=['https://www.googleapis.com/auth/drive.file'])
+        service = build('drive', 'v3', credentials=creds, cache_discovery=False)
+        
+        query = f"'{folder_id}' in parents and trashed = false and mimeType = 'text/plain'"
+        results = service.files().list(q=query, fields="files(name)").execute()
+        return sorted([f['name'] for f in results.get('files', [])])
+    except Exception:
+        return []
+
 @st.cache_data(ttl=300)
 def _load_memo_content(folder_id, file_name, creds_json):
     """구글 드라이브에서 메모 내용을 불러옵니다 (모듈 레벨 캐싱)."""
@@ -56,12 +70,9 @@ class DriveMemoHandler:
     def get_creds_dict_json(self):
         """인증 정보를 JSON 문자열로 반환합니다."""
         try:
-            # Streamlit Cloud와 로컬 환경 모두에서 안전하게 secrets를 가져옵니다.
             if 'google_drive' not in st.secrets: return None
-            
             creds_info = st.secrets["google_drive"]
             
-            # secrets 객체(AttrDict)에서 개별 값을 안전하게 추출
             client_id = creds_info.get("client_id")
             client_secret = creds_info.get("client_secret")
             refresh_token = creds_info.get("refresh_token")
@@ -89,6 +100,7 @@ class DriveMemoHandler:
     def upload_file(self, file_name, content_buffer, mime_type="text/plain"):
         """파일을 드라이브에 업로드하거나 업데이트합니다."""
         service = self.get_drive_service()
+        creds_json = self.get_creds_dict_json()
         if not service: return False
 
         try:
@@ -104,7 +116,7 @@ class DriveMemoHandler:
                 service.files().create(body=metadata, media_body=media, fields='id').execute()
             
             # 업로드 성공 시 캐시 초기화
-            _load_memo_content.clear(self.folder_id, file_name, self.get_creds_dict_json())
+            _load_memo_content.clear(self.folder_id, file_name, creds_json)
             self._clear_list_cache()
             return True
         except Exception:
@@ -114,23 +126,12 @@ class DriveMemoHandler:
         """폴더 내의 텍스트 파일 목록을 가져옵니다."""
         creds_json = self.get_creds_dict_json()
         if not creds_json: return []
-        return self._get_cached_list(creds_json, self.folder_id)
-
-    @st.cache_data(ttl=600)
-    def _get_cached_list(creds_json, folder_id):
-        try:
-            creds_dict = json.loads(creds_json)
-            creds = Credentials.from_authorized_user_info(creds_dict, scopes=['https://www.googleapis.com/auth/drive.file'])
-            service = build('drive', 'v3', credentials=creds, cache_discovery=False)
-            
-            query = f"'{folder_id}' in parents and trashed = false and mimeType = 'text/plain'"
-            results = service.files().list(q=query, fields="files(name)").execute()
-            return sorted([f['name'] for f in results.get('files', [])])
-        except: return []
+        # 전역 캐시 함수 호출
+        return _get_cached_list(creds_json, self.folder_id)
 
     def _clear_list_cache(self):
         """파일 목록 캐시를 초기화합니다."""
-        DriveMemoHandler._get_cached_list.clear()
+        _get_cached_list.clear()
 
     def delete_file(self, file_name, protected_file):
         """파일을 휴지통으로 보냅니다."""
@@ -163,9 +164,9 @@ def show_memo_ui(folder_id, default_file="dashboard_memo.txt"):
             
             ```toml
             [google_drive]
-            client_id = "당신의_클라이언트_ID"
-            client_secret = "당신의_클라이언트_시크릿"
-            refresh_token = "당신의_리프레시_토큰"
+            client_id = "당신의_아이디"
+            client_secret = "당신의_시크릿"
+            refresh_token = "당신의_토큰"
             token_uri = "https://oauth2.googleapis.com/token"
             ```
             
