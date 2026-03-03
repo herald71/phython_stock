@@ -97,6 +97,53 @@ class DriveMemoHandler:
             return _get_cached_drive_service(creds_json)
         return None
 
+    def download_file(self, file_name, use_cache=True):
+        """
+        드라이브에서 파일을 다운로드합니다. 
+        use_cache=True인 경우 로컬 캐시를 먼저 확인합니다.
+        """
+        cache_path = os.path.join(self.cache_dir, file_name)
+        
+        # 1. 캐시 확인
+        if use_cache and os.path.exists(cache_path):
+            try:
+                with open(cache_path, 'rb') as f:
+                    return io.BytesIO(f.read())
+            except Exception:
+                pass
+
+        # 2. 드라이브에서 다운로드
+        service = self.get_drive_service()
+        if not service: return None
+
+        try:
+            # 파일이 존재하는지 확인
+            query = f"name = '{file_name}' and '{self.folder_id}' in parents and trashed = false"
+            results = service.files().list(q=query, fields="files(id)").execute()
+            files = results.get('files', [])
+            
+            if not files:
+                return None
+                
+            file_id = files[0]['id']
+            request = service.files().get_media(fileId=file_id)
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+            
+            # 다운로드 성공 시 로컬 캐시 업데이트
+            fh.seek(0)
+            content = fh.read()
+            with open(cache_path, 'wb') as f:
+                f.write(content)
+            
+            fh.seek(0)
+            return fh
+        except Exception:
+            return None
+
     def upload_file(self, file_name, content_buffer, mime_type="text/plain"):
         """파일을 드라이브에 업로드하거나 업데이트합니다."""
         service = self.get_drive_service()
@@ -115,7 +162,16 @@ class DriveMemoHandler:
                 metadata = {'name': file_name, 'parents': [self.folder_id]}
                 service.files().create(body=metadata, media_body=media, fields='id').execute()
             
-            # 업로드 성공 시 캐시 초기화
+            # 업로드 성공 시 로컬 캐시 업데이트
+            try:
+                cache_path = os.path.join(self.cache_dir, file_name)
+                content_buffer.seek(0)
+                with open(cache_path, 'wb') as f:
+                    f.write(content_buffer.read())
+            except Exception:
+                pass
+
+            # 전역 캐시(Streamlit @cache_data) 초기화
             _load_memo_content.clear(self.folder_id, file_name, creds_json)
             self._clear_list_cache()
             return True
