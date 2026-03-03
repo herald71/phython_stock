@@ -50,7 +50,7 @@ st.markdown("""
 
 # --- 3. 상수 정의 및 환경 설정 ---
 CSV_FILE = 'KOSPI200_with_KSIC_2026.csv'
-GOOGLE_DRIVE_FOLDER_ID = '1Bkzmh-jlcOnmgOzS3I8fJyHmwsta_oAG'
+GOOGLE_DRIVE_FOLDER_ID = '1nv9imwPebStoOVJFWM5U6HIvAkib5xRY'
 CACHE_DIR = 'cache_data'
 
 # 로컬 캐시 폴더 생성
