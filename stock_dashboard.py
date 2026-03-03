@@ -8,6 +8,19 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests
 import json
+import os
+import threading
+import toml
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+
+# 구글 드라이브 연동을 위한 전역 변수 설정
+GOOGLE_DRIVE_FOLDER_ID = '1nv9imwPebStoOVJFWM5U6HIvAkib5xRY'
+from drive_memo_handler import show_memo_ui
+
+# 임시 캐시 디렉토리 생성
+CACHE_DIR = ".cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 # 필수 라이브러리 설치 안내:
 # streamlit: 웹 대시보드 제작용 라이브러리
@@ -49,20 +62,21 @@ def draw_custom_metric(col, label, value, color="#31333F", help_text=""):
 # st.info: 사용자에게 파란색 박스로 안내 메시지를 표시합니다.
 st.info("💡 **이용 가이드**: 사이드바에서 국가를 선택한 후 종목명이나 티커(예: 삼성전자, AAPL)를 입력하고 '조회하기' 버튼을 누르세요.")
 
+
+# --- 메모장 기능 (모듈 호출) ---
+show_memo_ui(GOOGLE_DRIVE_FOLDER_ID)
+
 # --- 시장 심리 지수 (공포지수) 섹션 추가 ---
 @st.cache_data(ttl=3600) # 1시간마다 갱신
 def get_market_sentiment():
-    """
-    CNN Fear & Greed Index, VIX, VKOSPI 지수를 가져오는 함수입니다.
-    """
+    """CNN Fear & Greed Index, VIX, VKOSPI 지수를 순차적으로 가져오는 함수입니다."""
     sentiment_data = {
         "fng_score": None, "fng_text": "N/A", 
         "vix_score": None, "vkospi_score": None
     }
     
-    # 1. CNN Fear & Greed Index
+    # 1) CNN Fear & Greed Index
     try:
-        # CNN API는 이제 더 정교한 헤더를 요구할 수 있습니다.
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
             'Referer': 'https://www.cnn.com/markets/fear-and-greed'
@@ -73,35 +87,27 @@ def get_market_sentiment():
             data = r.json()
             sentiment_data["fng_score"] = data['fear_and_greed']['score']
             sentiment_data["fng_text"] = data['fear_and_greed']['rating'].upper()
-    except Exception:
-        pass
+    except: pass
 
-    # 2. VIX 지수 (미국)
+    # 2) VIX 지수 (미국)
     try:
-        vix_df = fdr.DataReader('VIX') # fdr.DataReader('VIX') 가 더 안정적일 수 있음
+        vix_df = fdr.DataReader('VIX')
         if not vix_df.empty:
             sentiment_data["vix_score"] = vix_df.iloc[-1]['Close']
-    except Exception:
-        pass
+    except: pass
 
-    # 3. VKOSPI 지수 (한국) - 인베스팅닷컴에서 추출
+    # 3) VKOSPI 지수 (한국)
     try:
         from bs4 import BeautifulSoup
-        # 인베스팅닷컴 코스피 변동성 지수 페이지
         vk_url = "https://kr.investing.com/indices/kospi-volatility"
-        vk_headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-        }
+        vk_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         vk_r = requests.get(vk_url, headers=vk_headers, timeout=5)
         if vk_r.status_code == 200:
             soup = BeautifulSoup(vk_r.text, 'html.parser')
-            # 사용자가 지정한 data-test="instrument-price-last" 속성을 가진 div 추출
             price_div = soup.find('div', {'data-test': 'instrument-price-last'})
             if price_div:
-                val_str = price_div.text.strip()
-                sentiment_data["vkospi_score"] = float(val_str.replace(',', ''))
-    except Exception:
-        pass
+                sentiment_data["vkospi_score"] = float(price_div.text.strip().replace(',', ''))
+    except: pass
         
     return sentiment_data
 

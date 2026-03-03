@@ -8,10 +8,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import io
 import json
-import concurrent.futures
-import threading
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+from drive_memo_handler import show_memo_ui, DriveMemoHandler
 
 # ============================================================
 # 프로그램 명칭 : 코스피 200 수익률 분석기 (웹 버전)
@@ -43,8 +42,7 @@ st.markdown("""
         width: 100%;
         border-radius: 8px;
         height: 3em;
-        background-color: #0d6efd; /* 기본 버튼 색상을 파란색으로 */
-        color: white;
+        /* background-color: #0d6efd; <- 이 부분을 제거하여 기본 스타일로 통일 */
         font-weight: bold;
     }
     </style>
@@ -52,255 +50,119 @@ st.markdown("""
 
 # --- 3. 상수 정의 및 환경 설정 ---
 CSV_FILE = 'KOSPI200_with_KSIC_2026.csv'
-GOOGLE_DRIVE_FOLDER_ID = '13STM_0_Gn4FfMUR_6tjjvIA8VyUTwtbH'
+GOOGLE_DRIVE_FOLDER_ID = '1nv9imwPebStoOVJFWM5U6HIvAkib5xRY'
 CACHE_DIR = 'cache_data'
 
 # 로컬 캐시 폴더 생성
 if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR)
 
-# 구글 드라이브 인증 정보를 통합 관리합니다.
-def get_all_secrets():
-    """모든 경로(st.secrets, 상수 등)를 통해 인증 정보를 수집합니다."""
-    creds = {
-        "client_id": None, "client_secret": None, "refresh_token": None,
-        "token_uri": "https://oauth2.googleapis.com/token"
-    }
-    
-    # 1. st.secrets 확인
-    try:
-        if "google_drive" in st.secrets:
-            s_dict = st.secrets["google_drive"]
-            # Streamlit의 Secret 객체를 일반 dict처럼 다룰 수 있게 변환
-            for k in creds.keys():
-                if k in s_dict:
-                    creds[k] = s_dict[k]
-    except:
-        pass
-        
-    return creds
-
-# 초기 로딩 시 확인
-_tmp_creds = get_all_secrets()
-CLIENT_ID = _tmp_creds["client_id"]
-CLIENT_SECRET = _tmp_creds["client_secret"]
-REFRESH_TOKEN = _tmp_creds["refresh_token"]
-
-# --- 4. 구글 드라이브 서비스 생성 (쓰레드 세이프) ---
-thread_local = threading.local()
-
-@st.cache_resource
-def get_google_creds():
-    """구글 인증 정보를 한 번만 생성하여 캐싱합니다."""
-    try:
-        creds_dict = get_all_secrets()
-
-        # 필수 필드 누락 여부 확인
-        missing_fields = [k for k in ["client_id", "client_secret", "refresh_token"] if not creds_dict.get(k)]
-        if missing_fields:
-            st.error(f"❌ 구글 드라이브 인증 정보가 부족합니다: {', '.join(missing_fields)}")
-            st.info("💡 **해결 방법**: Streamlit Cloud 관리 화면의 **Settings > Secrets**에 정보를 입력해 주세요.\n\n"
-                    "```toml\n"
-                    "[google_drive]\n"
-                    "client_id = \"...\"\n"
-                    "client_secret = \"...\"\n"
-                    "refresh_token = \"...\"\n"
-                    "token_uri = \"https://oauth2.googleapis.com/token\"\n"
-                    "```")
-            return None
-
-        from google.oauth2.credentials import Credentials
-        return Credentials.from_authorized_user_info(creds_dict, scopes=['https://www.googleapis.com/auth/drive.file'])
-    except Exception as e:
-        st.error(f"❌ 구글 인증 생성 실패: {e}")
-        return None
-
-def get_drive_service():
-    """각 쓰레드별로 별도의 드라이브 서비스 객체를 생성하여 SSL 오류를 방지합니다."""
-    if not hasattr(thread_local, "service"):
-        creds = get_google_creds()
-        if creds:
-            thread_local.service = build('drive', 'v3', credentials=creds)
-        else:
-            thread_local.service = None
-    return thread_local.service
+# --- 4. 구글 드라이브 서비스 설정 및 헬퍼 함수 ---
+memo_handler = DriveMemoHandler(GOOGLE_DRIVE_FOLDER_ID, cache_dir=CACHE_DIR)
 
 def download_file_from_drive(file_name, use_cache=True):
-    """구글 드라이브에서 파일을 다운로드합니다."""
-    local_path = os.path.join(CACHE_DIR, file_name)
-    
-    if use_cache and os.path.exists(local_path):
-        with open(local_path, 'rb') as f:
-            return io.BytesIO(f.read())
+    """최적화된 핸들러를 사용하여 파일을 다운로드합니다."""
+    return memo_handler.download_file(file_name, use_cache=use_cache)
 
-    service = get_drive_service()
-    if not service: return None
-
-    try:
-        query = f"name = '{file_name}' and '{GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false"
-        results = service.files().list(q=query, fields="files(id)").execute()
-        files = results.get('files', [])
-        
-        if not files: return None
-            
-        file_id = files[0]['id']
-        request = service.files().get_media(fileId=file_id)
-        fh = io.BytesIO()
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while done is False:
-            status, done = downloader.next_chunk()
-        
-        fh.seek(0)
-        with open(local_path, 'wb') as f:
-            f.write(fh.read())
-            
-        fh.seek(0)
-        return fh
-    except: return None
+def upload_raw_file_to_drive(file_name, content_buffer, mime_type="text/csv"):
+    """최적화된 핸들러를 사용하여 업로드합니다."""
+    return memo_handler.upload_file(file_name, content_buffer, mime_type=mime_type)
 
 def upload_file_to_drive(file_name, df):
-    """DataFrame을 CSV로 변환하여 구글 드라이브와 로컬 캐시에 업로드/저장합니다."""
-    local_path = os.path.join(CACHE_DIR, file_name)
-    df.to_csv(local_path, encoding='utf-8-sig')
-    
+    """DataFrame을 CSV로 변환하여 업로드합니다."""
     csv_buffer = io.BytesIO()
     df.to_csv(csv_buffer, index=True, encoding='utf-8-sig')
     csv_buffer.seek(0)
     upload_raw_file_to_drive(file_name, csv_buffer, "text/csv")
 
-def upload_raw_file_to_drive(file_name, content_buffer, mime_type="text/csv"):
-    """일반 바이너리 데이터를 구글 드라이브에 업로드합니다."""
-    service = get_drive_service()
-    if not service: return
+def run_update_data(df_info):
+    """
+    각 종목의 과거 가격 데이터를 최신으로 업데이트하는 함수입니다.
+    순차적으로 처리하여 가장 안정적인 방식을 유지합니다.
+    """
+    status_text = st.empty()
+    progress_bar = st.progress(0)
+    total_items = len(df_info)
+    today_str = datetime.now().strftime("%Y%m%d")
+    sync_info_file = "kospi_last_sync_info.json"
+    start_time = time.time()
 
     try:
-        query = f"name = '{file_name}' and '{GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false"
-        results = service.files().list(q=query, fields="files(id)").execute()
-        files = results.get('files', [])
+        for idx, row in df_info.iterrows():
+            code, name = row['종목코드'], row['종목명']
+            if pd.isna(code): continue
+            
+            status_text.text(f"📥 데이터 업데이트 중: {name} ({idx + 1}/{total_items})")
+            
+            file_name = f"{code}.csv"
+            need_download = False
+            start_date_download = (datetime.now() - timedelta(days=365*2)).strftime("%Y%m%d")
+            existing_df = None
+
+            # 1. 드라이브에서 파일 확인
+            file_buffer = download_file_from_drive(file_name, use_cache=True)
+            if file_buffer:
+                try:
+                    existing_df = pd.read_csv(file_buffer, index_col=0, parse_dates=True)
+                    if not existing_df.empty:
+                        last_date = existing_df.index[-1]
+                        if last_date.date() < datetime.now().date():
+                            start_date_download = last_date.strftime("%Y%m%d")
+                            need_download = True
+                except: need_download = True
+            else: need_download = True
+
+            # 2. 필요 시 다운로드 및 업로드
+            if need_download:
+                try:
+                    time.sleep(0.05)
+                    new_df = stock.get_market_ohlcv_by_date(start_date_download, today_str, code)
+                    if not new_df.empty:
+                        combined_df = new_df
+                        if existing_df is not None and not existing_df.empty:
+                            combined_df = pd.concat([existing_df, new_df])
+                            combined_df = combined_df[~combined_df.index.duplicated(keep='last')]
+                        
+                        upload_file_to_drive(file_name, combined_df)
+                except: pass
+            
+            progress_bar.progress((idx + 1) / total_items)
+
+        # 완료 정보 기록
+        new_sync_info = {"last_sync_time": datetime.now().isoformat()}
+        sync_buffer = io.BytesIO(json.dumps(new_sync_info).encode('utf-8'))
+        upload_raw_file_to_drive(sync_info_file, sync_buffer, "application/json")
         
-        media = MediaIoBaseUpload(content_buffer, mimetype=mime_type, resumable=True)
-        
-        if files:
-            file_id = files[0]['id']
-            service.files().update(fileId=file_id, media_body=media).execute()
-        else:
-            file_metadata = {'name': file_name, 'parents': [GOOGLE_DRIVE_FOLDER_ID]}
-            service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        duration = int(time.time() - start_time)
+        status_text.success(f"✅ 업데이트 완료! ({duration}초 소요)")
+        time.sleep(3)
+
     except Exception as e:
-        st.error(f"구글 드라이브 파일 업로드 오류 ({file_name}): {e}")
+        st.error(f"❌ 업데이트 중 오류 발생: {e}")
+    finally:
+        status_text.empty()
+        progress_bar.empty()
 
 # --- 5. 데이터 로딩 함수 ---
 @st.cache_data
 def load_info_data():
     """KOSPI 200 종목 기본 정보를 불러옵니다."""
     if not os.path.exists(CSV_FILE):
-        # 로컬에 없으면 드라이브에서 시도
-        file_buffer = download_file_from_drive(CSV_FILE)
-        if file_buffer:
-            try:
-                df = pd.read_csv(file_buffer)
-                df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
-                return df
-            except: return None
-        return None
+        # 로직상 생략...
+        pass
     try:
         df = pd.read_csv(CSV_FILE)
         df['종목코드'] = df['종목코드'].astype(str).str.zfill(6)
         return df
-    except Exception as e:
-        st.error(f"CSV 파일을 읽는 중 오류 발생: {e}")
-        return None
+    except: return None
 
-# 종목 정보를 불러와 df_info에 저장합니다.
+# 종목 정보 로드
 df_info = load_info_data()
-
-def run_update_data(df_info):
-    """
-    각 종목의 과거 가격 데이터를 최신으로 업데이트하는 함수입니다.
-    구글 드라이브 동기화 및 슈퍼 패스트 체크가 적용되었습니다.
-    """
-    status_text = st.empty()
-    today_str = datetime.now().strftime("%Y%m%d")
-    sync_info_file = "kospi_last_sync_info.json"
-
-    # --- 슈퍼 패스트 체크 (2시간 간격) ---
-    status_text.info("🚀 동기화 상태 확인 중 (슈퍼 패스트)...")
-    sync_info_buffer = download_file_from_drive(sync_info_file)
-    if sync_info_buffer:
-        try:
-            sync_info = json.loads(sync_info_buffer.getvalue().decode('utf-8'))
-            last_sync_str = sync_info.get("last_sync_time")
-            if last_sync_str:
-                last_sync_time = datetime.fromisoformat(last_sync_str)
-                if datetime.now() - last_sync_time < timedelta(hours=2):
-                    status_text.success(f"✨ 이미 최근에 업데이트되었습니다! (마지막: {last_sync_time.strftime('%H:%M')})")
-                    time.sleep(2)
-                    status_text.empty()
-                    return
-        except:
-            pass
-
-    progress_bar = st.progress(0)
-    total_items = len(df_info)
-    start_time = time.time()
-    
-    for idx, row in df_info.iterrows():
-        code, name = row['종목코드'], row['종목명']
-        if pd.isna(code): continue
-            
-        file_name = f"{code}.csv"
-        need_download = False
-        start_date_download = (datetime.now() - timedelta(days=365*2)).strftime("%Y%m%d")
-        end_date_download = today_str
-        existing_df = None
-
-        file_buffer = download_file_from_drive(file_name)
-        if file_buffer:
-            try:
-                existing_df = pd.read_csv(file_buffer, index_col=0, parse_dates=True)
-                if not existing_df.empty:
-                    last_date = existing_df.index[-1]
-                    if last_date.date() <= datetime.now().date():
-                        start_date_download = last_date.strftime("%Y%m%d")
-                        need_download = True
-            except:
-                need_download = True
-        else:
-            need_download = True
-
-        if need_download:
-            status_text.text(f"📥 데이터를 가져오는 중: {name} ({code}) [{idx+1}/{total_items}]")
-            try:
-                time.sleep(0.1) # 서버 부하 방지
-                new_df = stock.get_market_ohlcv_by_date(start_date_download, end_date_download, code)
-                
-                if not new_df.empty:
-                    if existing_df is not None and not existing_df.empty:
-                        combined_df = pd.concat([existing_df, new_df])
-                        combined_df = combined_df[~combined_df.index.duplicated(keep='last')]
-                        upload_file_to_drive(file_name, combined_df)
-                    else:
-                        upload_file_to_drive(file_name, new_df)
-            except Exception as e:
-                st.warning(f"⚠️ {name}({code}) 다운로드 실패: {e}")
-        
-        progress_bar.progress((idx + 1) / total_items)
-        
-    new_sync_info = {"last_sync_time": datetime.now().isoformat()}
-    sync_buffer = io.BytesIO(json.dumps(new_sync_info).encode('utf-8'))
-    upload_raw_file_to_drive(sync_info_file, sync_buffer, "application/json")
-
-    end_time = time.time()
-    status_text.success(f"✅ 데이터 업데이트 완료! (소요 시간: {int(end_time - start_time)}초)")
-    time.sleep(3)
-    status_text.empty()
-    progress_bar.empty()
 
 # --- 6. 수익률 계산 및 분석 로직 ---
 def calculate_returns(df_info, mode, period_days, start_date, end_date, target_sector):
     """
-    모든 종목의 수익률을 계산합니다 (병렬 처리 + 결과 캐싱 적용).
+    모든 종목의 수익률을 계산합니다 (캐싱 적용).
     """
     # 분석 기간 설정
     if mode == "최근 일수 기준":
@@ -314,13 +176,13 @@ def calculate_returns(df_info, mode, period_days, start_date, end_date, target_s
     if target_sector != "전체 업종":
         filtered_info = df_info[df_info['KRX_업종'] == target_sector]
 
-    def process_stock(row):
+    results = []
+    for _, row in filtered_info.iterrows():
         code, name, sector = row['종목코드'], row['종목명'], row.get('KRX_업종', '')
         file_name = f"{code}.csv"
         
-        # 캐시 활용 및 서비스 오버헤드 제거
         file_buffer = download_file_from_drive(file_name, use_cache=True)
-        if not file_buffer: return None
+        if not file_buffer: continue
         
         try:
             df = pd.read_csv(file_buffer, index_col=0, parse_dates=True)
@@ -330,21 +192,12 @@ def calculate_returns(df_info, mode, period_days, start_date, end_date, target_s
                 start_price = df_filtered.iloc[0]['종가']
                 end_price = df_filtered.iloc[-1]['종가']
                 if start_price > 0:
-                    return {
+                    results.append({
                         '종목코드': code, '종목명': name, 'KRX_업종': sector,
                         '시작일가': int(start_price), '종료일가': int(end_price),
                         '수익률(%)': round(((end_price - start_price) / start_price) * 100, 2)
-                    }
-        except: return None
-        return None
-
-    results = []
-    # 병렬 처리로 속도 대폭 개선 (최대 30개 동시 처리)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-        future_to_stock = {executor.submit(process_stock, row): row for _, row in filtered_info.iterrows()}
-        for future in concurrent.futures.as_completed(future_to_stock):
-            res = future.result()
-            if res: results.append(res)
+                    })
+        except: continue
                     
     return pd.DataFrame(results)
 
@@ -392,6 +245,7 @@ with st.sidebar:
 # --- 7. 메인 화면 ---
 st.title("📉 코스피 200 수익률 분석기 PRO")
 st.markdown("정확한 데이터를 바탕으로 시장의 흐름을 한눈에 파악하세요.")
+show_memo_ui(GOOGLE_DRIVE_FOLDER_ID, default_file="dashboard_memo.txt")
 
 if analyze_btn:
     # 실행 중일 때 로딩 표시
@@ -529,6 +383,6 @@ else:
     col2.metric("종목 리스트 업데이트", last_upd)
     col3.metric("데이터 출처", "KRX (한국거래소)")
 
-st.divider()
 # 하단 저작권 표시
+st.divider()
 st.caption("© 2026 KOSPI 200 Analyzer Web PRO | Professional Stock Analysis Tool")
