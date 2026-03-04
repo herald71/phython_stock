@@ -48,9 +48,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 상수 정의 및 환경 설정 ---
-CSV_FILE = 'KOSPI200_with_KSIC_2026.csv'
-GOOGLE_DRIVE_FOLDER_ID = '1Bkzmh-jlcOnmgOzS3I8fJyHmwsta_oAG'
+# 구글 드라이브 폴더 ID 설정
+KOSPI_DATA_FOLDER_ID = '1Bkzmh-jlcOnmgOzS3I8fJyHmwsta_oAG'  # 코스피 200 데이터 저장소
+MEMO_FOLDER_ID = '1nv9imwPebStoOVJFWM5U6HIvAkib5xRY'       # 메모 데이터 저장소
 CACHE_DIR = 'cache_data'
 
 # 로컬 캐시 폴더 생성
@@ -58,15 +58,18 @@ if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR)
 
 # --- 4. 구글 드라이브 서비스 설정 및 헬퍼 함수 ---
-memo_handler = DriveMemoHandler(GOOGLE_DRIVE_FOLDER_ID, cache_dir=CACHE_DIR)
+# 데이터 핸들러 (코스피 데이터용)
+data_handler = DriveMemoHandler(KOSPI_DATA_FOLDER_ID, cache_dir=CACHE_DIR)
+# 메모 핸들러 (메모 전용 폴더 사용)
+memo_handler = DriveMemoHandler(MEMO_FOLDER_ID, cache_dir=CACHE_DIR)
 
 def download_file_from_drive(file_name, use_cache=True):
-    """최적화된 핸들러를 사용하여 파일을 다운로드합니다."""
-    return memo_handler.download_file(file_name, use_cache=use_cache)
+    """최적화된 데이터 핸들러를 사용하여 파일을 다운로드합니다."""
+    return data_handler.download_file(file_name, use_cache=use_cache)
 
 def upload_raw_file_to_drive(file_name, content_buffer, mime_type="text/csv"):
-    """최적화된 핸들러를 사용하여 업로드합니다."""
-    return memo_handler.upload_file(file_name, content_buffer, mime_type=mime_type)
+    """최적화된 데이터 핸들러를 사용하여 업로드합니다."""
+    return data_handler.upload_file(file_name, content_buffer, mime_type=mime_type)
 
 def upload_file_to_drive(file_name, df):
     """DataFrame을 CSV로 변환하여 업로드합니다."""
@@ -245,7 +248,7 @@ with st.sidebar:
 # --- 7. 메인 화면 ---
 st.title("📉 코스피 200 수익률 분석기 PRO")
 st.markdown("정확한 데이터를 바탕으로 시장의 흐름을 한눈에 파악하세요.")
-show_memo_ui(GOOGLE_DRIVE_FOLDER_ID, default_file="dashboard_memo.txt")
+show_memo_ui(MEMO_FOLDER_ID, default_file="dashboard_memo.txt")
 
 if analyze_btn:
     # 실행 중일 때 로딩 표시

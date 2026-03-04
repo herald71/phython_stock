@@ -15,7 +15,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 # 구글 드라이브 연동을 위한 전역 변수 설정
-GOOGLE_DRIVE_FOLDER_ID = '1Bkzmh-jlcOnmgOzS3I8fJyHmwsta_oAG'
+GOOGLE_DRIVE_FOLDER_ID = '1nv9imwPebStoOVJFWM5U6HIvAkib5xRY' # 메모 데이터 저장소
 from drive_memo_handler import show_memo_ui
 
 # 임시 캐시 디렉토리 생성
