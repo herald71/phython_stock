@@ -213,7 +213,7 @@ def calculate_returns(df_info, mode, period_days, start_date, end_date, target_s
             df = pd.read_csv(file_buffer, index_col=0, parse_dates=True)
             df_filtered = df[(df.index >= calc_start_date) & (df.index <= calc_end_date)]
             
-            if len(df_filtered) >= 1:
+            if len(df_filtered) >= 2:
                 start_price = df_filtered.iloc[0]['종가']
                 end_price = df_filtered.iloc[-1]['종가']
                 if start_price > 0:
@@ -280,7 +280,7 @@ if analyze_btn:
         if not df_results.empty:
             # --- 결과 표시: TOP 10 종목 ---
             st.subheader(f"🏆 수익률 상위 TOP 10 종목 ({target_sector})")
-            top_10 = df_results.sort_values(by='수익률(%)', ascending=False).head(10)
+            top_10 = df_results.sort_values(by='수익률(%)', ascending=False).head(10).copy()
             
             # 수익률 1위 종목을 돋보이게 표시 (메트릭 카드)
             best_stock = top_10.iloc[0]
@@ -309,7 +309,7 @@ if analyze_btn:
             # --- 결과 표시: BOTTOM 10 종목 ---
             st.divider()
             st.subheader(f"📉 수익률 하위 BOTTOM 10 종목 ({target_sector})")
-            bottom_10 = df_results.sort_values(by='수익률(%)', ascending=True).head(10)
+            bottom_10 = df_results.sort_values(by='수익률(%)', ascending=True).head(10).copy()
             
             # 수익률 최하위 종목 표시 (메트릭 카드)
             worst_stock = bottom_10.iloc[0]
