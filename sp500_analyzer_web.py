@@ -78,8 +78,7 @@ def get_google_creds():
             # 2. st.secrets에 없을 경우 직접 toml 파일 로드 시도 (경로 문제 대비)
             possible_paths = [
                 ".streamlit/secrets.toml",
-                os.path.join(os.getcwd(), ".streamlit/secrets.toml"),
-                "c:/Users/01999/Documents/source/파이썬주식분석프로그램/.streamlit/secrets.toml"
+                os.path.join(os.getcwd(), ".streamlit/secrets.toml")
             ]
             for path in possible_paths:
                 if os.path.exists(path):
