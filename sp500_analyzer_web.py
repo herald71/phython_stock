@@ -8,8 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import io
 import json
-import concurrent.futures
-import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from drive_memo_handler import DriveMemoHandler, show_memo_ui
 
 # ============================================================
@@ -18,14 +17,12 @@ from drive_memo_handler import DriveMemoHandler, show_memo_ui
 # 작성자        : Antigravity AI
 # ============================================================
 
-# 로깅 설정 (디버깅용)
-logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger(__name__)
+
 
 # --- 1. 페이지 설정 (브라우저 탭에 표시될 정보) ---
 st.set_page_config(
     page_title="S&P 500 수익률 분석기 PRO",
-    page_icon="🇺🇸",
+    page_icon="💲",
     layout="wide"
 )
 
