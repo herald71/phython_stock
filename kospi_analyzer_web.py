@@ -93,6 +93,26 @@ def run_update_data(df_info):
     start_time = time.time()
 
     try:
+        # --- 슈퍼 패스트 체크 (2시간 간격) ---
+        status_text.info("🚀 동기화 상태 확인 중 (슈퍼 패스트)...")
+        sync_info_buffer = download_file_from_drive(sync_info_file)
+        if sync_info_buffer:
+            try:
+                sync_info = json.loads(sync_info_buffer.getvalue().decode('utf-8'))
+                last_sync_str = sync_info.get("last_sync_time")
+                if last_sync_str:
+                    last_sync_time = datetime.fromisoformat(last_sync_str)
+                    # 마지막 업데이트로부터 2시간이 지나지 않았으면 건너뜀
+                    if datetime.now() - last_sync_time < timedelta(hours=2):
+                        status_text.success(f"✨ 이미 최근에 업데이트되었습니다! (마지막: {last_sync_time.strftime('%H:%M')})")
+                        time.sleep(2)
+                        status_text.empty()
+                        return
+            except:
+                pass
+        
+        status_text.empty()
+        
         for idx, row in df_info.iterrows():
             code, name = row['종목코드'], row['종목명']
             if pd.isna(code): continue
