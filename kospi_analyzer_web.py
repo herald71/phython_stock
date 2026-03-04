@@ -48,6 +48,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- 3. 상수 정의 및 환경 설정 ---
+CSV_FILE = 'KOSPI200_with_KSIC_2026.csv'
 # 구글 드라이브 폴더 ID 설정
 KOSPI_DATA_FOLDER_ID = '1Bkzmh-jlcOnmgOzS3I8fJyHmwsta_oAG'  # 코스피 200 데이터 저장소
 MEMO_FOLDER_ID = '1nv9imwPebStoOVJFWM5U6HIvAkib5xRY'       # 메모 데이터 저장소
