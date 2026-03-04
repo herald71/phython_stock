@@ -29,6 +29,17 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- 🔗 바로가기 네비게이션 ---
+st.markdown("""
+<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 10px 20px; border-radius: 10px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+    <span style="color: #ffd700; font-weight: bold; font-size: 0.9rem;">🔗 바로가기:</span>
+    <a href="https://phythonstock-t6smhrjdovzwmwtr8hi6h7.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📈 주식 데이터 조회기</a>
+    <a href="https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📥 주식 데이터 일괄 조회기</a>
+    <a href="https://phythonstock-if4pq46alnrqsyjwnej26f.streamlit.app" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📊 KOSPI 200 분석기</a>
+    <span style="color: #ffffff; font-weight: bold; font-size: 0.85rem; border-bottom: 2px solid #ffd700; padding-bottom: 2px;">🇺🇸 S&P500 분석기</span>
+</div>
+""", unsafe_allow_html=True)
+
 # --- 2. 디자인 꾸미기 (CSS) ---
 st.markdown("""
     <style>
