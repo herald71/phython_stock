@@ -8,6 +8,7 @@ import zipfile
 import io
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from drive_memo_handler import show_memo_ui
 
 # ============================================================
 # Program Name : stock_downloader_web.py
@@ -62,6 +63,8 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- Global Configuration ---
+MEMO_FOLDER_ID = '1nv9imwPebStoOVJFWM5U6HIvAkib5xRY'  # 메모 데이터 저장소 (공통)
+
 # 주요 지수 맵핑 테이블 (사용자가 '코스피'라고 입력해도 '^KS11'로 변환)
 INDEX_MAP = {
     "코스피": "^KS11",
@@ -177,6 +180,9 @@ def create_zip_and_summary(results_list, start_date_str, end_date_str):
 
 st.title("🚀 Professional Stock Data Downloader")
 st.markdown("전 세계 주식 데이터를 손쉽게 조회하고 엑셀 파일로 다운로드하세요.")
+
+# 메모 기능 (공통 폴더 사용)
+show_memo_ui(MEMO_FOLDER_ID, default_file="dashboard_memo.txt")
 
 # --- Sidebar: Settings ---
 with st.sidebar:
