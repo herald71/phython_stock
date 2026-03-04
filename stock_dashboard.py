@@ -319,7 +319,20 @@ if submit_button:
     stock_code = get_stock_code(stock_input, df_listing, market_choice)
     
     if stock_code:
-        st.subheader(f"📊 {stock_input} ({stock_code}) 데이터 - {market_choice}")
+        # 종목 제목 + 네이버증권 바로가기 (한국 종목만)
+        title_text = f"📊 {stock_input} ({stock_code}) 데이터 - {market_choice}"
+        if market_choice == "한국":
+            naver_url = f"https://finance.naver.com/item/main.naver?code={stock_code}"
+            st.markdown(
+                f"### {title_text} &nbsp; [🔗 네이버증권]({naver_url})",
+                unsafe_allow_html=True
+            )
+        else:
+            yahoo_url = f"https://finance.yahoo.com/quote/{stock_code}"
+            st.markdown(
+                f"### {title_text} &nbsp; [🔗 Yahoo Finance]({yahoo_url})",
+                unsafe_allow_html=True
+            )
         
         with st.spinner('데이터를 불러오는 중입니다...'):
             try:
