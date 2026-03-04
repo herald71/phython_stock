@@ -4,7 +4,7 @@ import os
 from drive_memo_handler import DriveMemoHandler
 
 # 테스트용 폴더 ID (사용자의 코드에서 가져옴)
-FOLDER_ID = '1nv9imwPebStoOVJFWM5U6HIvAkib5xRY'
+FOLDER_ID = '1Bkzmh-jlcOnmgOzS3I8fJyHmwsta_oAG'
 CACHE_DIR = 'test_cache'
 TEST_FILE = 'test_download.txt'
 
