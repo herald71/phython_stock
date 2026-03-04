@@ -36,7 +36,7 @@ st.markdown("""
     <a href="https://phythonstock-t6smhrjdovzwmwtr8hi6h7.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📈 주식 데이터 조회기</a>
     <a href="https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📥 주식 데이터 일괄 조회기</a>
     <a href="https://phythonstock-if4pq46alnrqsyjwnej26f.streamlit.app" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📊 KOSPI 200 분석기</a>
-    <span style="color: #ffffff; font-weight: bold; font-size: 0.85rem; border-bottom: 2px solid #ffd700; padding-bottom: 2px;">🇺🇸 S&P500 분석기</span>
+    <span style="color: #ffffff; font-weight: bold; font-size: 0.85rem; border-bottom: 2px solid #ffd700; padding-bottom: 2px;">💲 S&amp;P500 분석기</span>
 </div>
 """, unsafe_allow_html=True)
 
