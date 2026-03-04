@@ -35,16 +35,14 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 # set_page_config: 웹 페이지의 타이틀(제목), 아이콘, 레이아웃(넓게 보기 등)을 설정합니다.
 st.set_page_config(page_title="주식 데이터 조회기", page_icon="📈", layout="wide")
 
-# --- 🔗 바로가기 네비게이션 ---
-st.markdown("""
-<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 10px 20px; border-radius: 10px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-    <span style="color: #ffd700; font-weight: bold; font-size: 0.9rem;">🔗 바로가기:</span>
-    <span style="color: #ffffff; font-weight: bold; font-size: 0.85rem; border-bottom: 2px solid #ffd700; padding-bottom: 2px;">📈 주식 데이터 조회기</span>
-    <a href="https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📥 주식 데이터 일괄 조회기</a>
-    <a href="https://phythonstock-if4pq46alnrqsyjwnej26f.streamlit.app" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📊 KOSPI 200 분석기</a>
-    <a href="https://phythonstock-xeaeercfmnksfyrn2c4szg.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">💲 S&amp;P500 분석기</a>
-</div>
-""", unsafe_allow_html=True)
+# --- 바로가기 네비게이션 ---
+st.markdown(
+    "🔗 **바로가기:** "
+    "**📈 주식 데이터 조회기** · "
+    "[📥 주식 데이터 일괄 조회기](https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/) · "
+    "[📊 KOSPI 200 분석기](https://phythonstock-if4pq46alnrqsyjwnej26f.streamlit.app) · "
+    "[💲 S&P500 분석기](https://phythonstock-xeaeercfmnksfyrn2c4szg.streamlit.app/)"
+)
 
 # --- CSS 커스텀 스타일 추가 (가독성 개선) ---
 # st.metric의 폰트 크기가 커서 지표가 잘리는 현상을 해결하기 위해 CSS를 주입합니다.

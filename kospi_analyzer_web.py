@@ -25,16 +25,14 @@ st.set_page_config(
     layout="wide"  # 화면을 넓게 사용하도록 설정합니다.
 )
 
-# --- 🔗 바로가기 네비게이션 ---
-st.markdown("""
-<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 10px 20px; border-radius: 10px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-    <span style="color: #ffd700; font-weight: bold; font-size: 0.9rem;">🔗 바로가기:</span>
-    <a href="https://phythonstock-t6smhrjdovzwmwtr8hi6h7.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📈 주식 데이터 조회기</a>
-    <a href="https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">📥 주식 데이터 일괄 조회기</a>
-    <span style="color: #ffffff; font-weight: bold; font-size: 0.85rem; border-bottom: 2px solid #ffd700; padding-bottom: 2px;">📊 KOSPI 200 분석기</span>
-    <a href="https://phythonstock-xeaeercfmnksfyrn2c4szg.streamlit.app/" target="_blank" style="color: #8be9fd; text-decoration: none; font-size: 0.85rem;">💲 S&amp;P500 분석기</a>
-</div>
-""", unsafe_allow_html=True)
+# --- 바로가기 네비게이션 ---
+st.markdown(
+    "🔗 **바로가기:** "
+    "[📈 주식 데이터 조회기](https://phythonstock-t6smhrjdovzwmwtr8hi6h7.streamlit.app/) · "
+    "[📥 주식 데이터 일괄 조회기](https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/) · "
+    "**📊 KOSPI 200 분석기** · "
+    "[💲 S&P500 분석기](https://phythonstock-xeaeercfmnksfyrn2c4szg.streamlit.app/)"
+)
 
 # --- 2. 디자인 꾸미기 (CSS) ---
 # 대시보드를 더 고급스럽게 만들기 위해 스타일을 적용합니다.
