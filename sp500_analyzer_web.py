@@ -30,9 +30,9 @@ st.set_page_config(
 st.markdown(
     "🔗 **바로가기:** "
     "[📈 주식 데이터 조회기](https://phythonstock-t6smhrjdovzwmwtr8hi6h7.streamlit.app/) · "
-    "[� 주식 데이터 일괄 조회기](https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/) · "
-    "[� KOSPI 200 분석기](https://phythonstock-if4pq46alnrqsyjwnej26f.streamlit.app) · "
-    "**💲 S&P500 분석기**"
+    "[📥 주식 데이터 일괄 조회기](https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/) · "
+    "[📊 KOSPI 200 분석기](https://phythonstock-if4pq46alnrqsyjwnej26f.streamlit.app) · "
+    "**💲 S&P500 분석기** · [📈 데이터 트레이더](https://phythonstock-3ptq9ctv7bluf3euvtmkgr.streamlit.app/)"
 )
 
 # --- 2. 디자인 꾸미기 (CSS) ---

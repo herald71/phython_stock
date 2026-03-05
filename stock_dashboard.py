@@ -41,7 +41,8 @@ st.markdown(
     "**📈 주식 데이터 조회기** · "
     "[📥 주식 데이터 일괄 조회기](https://phythonstock-t8qh6heqss8nwnjwycjrcb.streamlit.app/) · "
     "[📊 KOSPI 200 분석기](https://phythonstock-if4pq46alnrqsyjwnej26f.streamlit.app) · "
-    "[💲 S&P500 분석기](https://phythonstock-xeaeercfmnksfyrn2c4szg.streamlit.app/)"
+    "[💲 S&P500 분석기](https://phythonstock-xeaeercfmnksfyrn2c4szg.streamlit.app/) · "
+    "[📈 데이터 트레이더](https://phythonstock-3ptq9ctv7bluf3euvtmkgr.streamlit.app/)"
 )
 
 # --- CSS 커스텀 스타일 추가 (가독성 개선) ---
