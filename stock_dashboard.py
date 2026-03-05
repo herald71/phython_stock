@@ -272,7 +272,7 @@ df_listing = load_stock_list(market_choice)
 with st.sidebar.form("search_form"):
     # st.text_input: 사용자가 텍스트(종목명 또는 코드)를 입력할 수 있는 칸입니다.
     default_input = "삼성전자" if market_choice == "한국" else "AAPL"
-    stock_input = st.text_input("종목명 또는 티커 입력", value=default_input)
+    stock_input = st.text_input("종목명, 티커, 또는 지수명 입력", value=default_input, help="종목 이외에 시장 지수(코스피, 코스닥, S&P500, 나스닥, 다우존스)도 입력 가능합니다.")
 
     # st.date_input: 달력 모양의 입력을 통해 날자로 범위를 설정합니다.
     start_date = st.date_input("시작일", value=default_start)
@@ -291,10 +291,25 @@ with st.sidebar.form("search_form"):
 def get_stock_code(name_or_symbol, df_listing, market_type):
     """
     사용자가 입력한 이름 또는 티커를 바탕으로 실제 주식 코드를 찾는 함수입니다.
+    지수(Index) 입력 시 해당 심볼을 반환하는 기능도 포함합니다.
     """
     # 공백 제거
     name_or_symbol = name_or_symbol.strip()
     
+    # --- 지수(Index) 키워드 매핑 ---
+    index_mapping = {
+        "코스피": "^KS11", "KOSPI": "^KS11", "KS11": "^KS11", "^KS11": "^KS11",
+        "코스닥": "^KQ11", "KOSDAQ": "^KQ11", "KQ11": "^KQ11", "^KQ11": "^KQ11",
+        "S&P500": "US500", "SP500": "US500", "US500": "US500",
+        "나스닥": "^IXIC", "NASDAQ": "^IXIC", "IXIC": "^IXIC", "^IXIC": "^IXIC",
+        "다우존스": "^DJI", "DOW": "^DJI", "DOWJONES": "^DJI", "DJI": "^DJI", "^DJI": "^DJI"
+    }
+    
+    upper_input = name_or_symbol.upper().replace(" ", "")
+    for key, symbol in index_mapping.items():
+        if upper_input == key:
+            return symbol
+            
     if market_type == "한국":
         # 한국: 사용자가 숫자로 된 '코드'를 직접 입력했는지 확인(isdigit)
         if name_or_symbol.isdigit():
@@ -320,20 +335,27 @@ if submit_button:
     stock_code = get_stock_code(stock_input, df_listing, market_choice)
     
     if stock_code:
-        # 종목 제목 + 네이버증권 바로가기 (한국 종목만)
-        title_text = f"📊 {stock_input} ({stock_code}) 데이터 - {market_choice}"
-        if market_choice == "한국":
-            naver_url = f"https://finance.naver.com/item/main.naver?code={stock_code}"
-            st.markdown(
-                f"### {title_text} &nbsp; [🔗 네이버증권]({naver_url})",
-                unsafe_allow_html=True
-            )
+        # 지수(Index) 여부 판별
+        is_index = stock_code in ["^KS11", "^KQ11", "US500", "^IXIC", "^DJI"]
+        
+        # 종목 제목 + 네이버증권/야후 파이낸스 바로가기
+        title_text = f"📊 {stock_input} ({stock_code}) 데이터" + (f" - {market_choice}" if not is_index else " - 시장 지수(Index)")
+        
+        if is_index:
+            st.markdown(f"### {title_text}", unsafe_allow_html=True)
         else:
-            yahoo_url = f"https://finance.yahoo.com/quote/{stock_code}"
-            st.markdown(
-                f"### {title_text} &nbsp; [🔗 Yahoo Finance]({yahoo_url})",
-                unsafe_allow_html=True
-            )
+            if market_choice == "한국":
+                naver_url = f"https://finance.naver.com/item/main.naver?code={stock_code}"
+                st.markdown(
+                    f"### {title_text} &nbsp; [🔗 네이버증권]({naver_url})",
+                    unsafe_allow_html=True
+                )
+            else:
+                yahoo_url = f"https://finance.yahoo.com/quote/{stock_code}"
+                st.markdown(
+                    f"### {title_text} &nbsp; [🔗 Yahoo Finance]({yahoo_url})",
+                    unsafe_allow_html=True
+                )
         
         with st.spinner('데이터를 불러오는 중입니다...'):
             try:
