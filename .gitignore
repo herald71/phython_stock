@@ -50,3 +50,6 @@ last_sync_info.json
 # Exceptions (Keep these important config CSVs)
 !sp500_tickers_detailed.csv
 !KOSPI200_with_KSIC_2026.csv
+
+.env
+.kis_token.txt
