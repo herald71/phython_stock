@@ -721,7 +721,7 @@ if uploaded_file is not None:
             summary_results.append({
                 "전략명": strat,
                 "전략 수익율(%)": strat_ret,
-                "매수.보유 수익율": bh_ret,
+                "매수.보유 수익율(Buy&Hold)": bh_ret,
                 "초과수익율": diff,
                 "총거래 회수": len(t_list)
             })

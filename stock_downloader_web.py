@@ -126,6 +126,10 @@ def get_stock_listing():
 def download_stock_data(ticker, ticker_name, start_date, end_date):
     """Downloads stock data and returns a tuple (status, message, dataframe)"""
     ticker = str(ticker).strip()
+    if ticker.endswith('.0'):
+        ticker = ticker[:-2]
+    if ticker.isdigit() and len(ticker) < 6:
+        ticker = ticker.zfill(6)
     ticker_name = str(ticker_name).strip()
     
     # 지수 맵핑 처리
@@ -254,9 +258,9 @@ if input_mode == "엑셀/CSV 파일 업로드":
     if uploaded_file:
         try:
             if uploaded_file.name.endswith('.csv'):
-                ticker_df = pd.read_csv(uploaded_file)
+                ticker_df = pd.read_csv(uploaded_file, dtype=str)
             else:
-                ticker_df = pd.read_excel(uploaded_file)
+                ticker_df = pd.read_excel(uploaded_file, dtype=str)
             
             t_col = next((c for c in ticker_df.columns if any(x in c.lower() for x in ['티커', 'ticker', 'symbol'])), None)
             n_col = next((c for c in ticker_df.columns if any(x in c.lower() for x in ['명', 'name'])), None)
