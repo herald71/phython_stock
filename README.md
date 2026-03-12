@@ -81,10 +81,34 @@ pip install -r requirements.txt
 *(또는 `pip install streamlit finance-datareader pandas plotly xlsxwriter pykrx`)*
 
 ### 4단계: 프로그램 시작! (Run)
-아래 명령어를 입력하면 브라우저가 열리면서 대시보드가 실행됩니다.
+
+> ⚠️ **중요**: 반드시 `.venv` 가상환경을 활성화한 상태에서 실행하세요!  
+> 시스템 Python과 가상환경의 패키지가 다를 수 있어 `ModuleNotFoundError`가 발생할 수 있습니다.
+
 ```bash
+# 가상환경 활성화 후 실행 (권장)
+.\.venv\Scripts\activate          # Windows
+source .venv/bin/activate         # Mac / Linux
+
 streamlit run stock_dashboard.py
 ```
+
+또는 가상환경을 직접 지정하여 실행할 수도 있습니다:
+```bash
+# Windows: 가상환경 활성화 없이 직접 실행
+.\.venv\Scripts\streamlit.exe run stock_dashboard.py
+```
+
+### 📋 앱별 실행 명령어 (App Commands)
+
+| 앱 이름 | 설명 | 실행 명령어 |
+|---------|------|------------|
+| 📈 **주식 대시보드** | 한국/미국 주식 통합 분석 (메인) | `streamlit run stock_dashboard.py` |
+| 📥 **데이터 다운로더** | 주식 데이터 일괄 다운로드 | `streamlit run stock_downloader_web.py` |
+| 📊 **KOSPI 200 분석기** | KOSPI 200 종목 상세 분석 | `streamlit run kospi_analyzer_web.py` |
+| 💲 **S&P 500 분석기** | S&P 500 종목 상세 분석 | `streamlit run sp500_analyzer_web.py` |
+| 📈 **데이터 트레이더** | 주식 데이터 트레이딩 도구 | `streamlit run data_trader.py` |
+| 🌍 **외국인 매매 동향** | 외국인/기관 매매 분석 | `streamlit run foreign_trading_web.py` |
 
 ---
 

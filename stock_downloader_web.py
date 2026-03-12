@@ -190,6 +190,45 @@ def create_zip_and_summary(results_list, start_date_str, end_date_str):
         
     return zip_buffer.getvalue(), summary_buffer.getvalue()
 
+def create_combined_excel(results_list):
+    """Creates a single Excel file with each stock as a separate sheet"""
+    excel_buffer = io.BytesIO()
+    summary_data = []
+    
+    # 시트 이름 중복 방지를 위한 카운터
+    sheet_names_used = {}
+    
+    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+        for res in results_list:
+            ticker, name, status, msg, df = res
+            summary_data.append({
+                "티커": ticker,
+                "종목명": name,
+                "상태": status,
+                "메시지": msg
+            })
+            
+            if status == "Success" and df is not None:
+                # 시트 이름 생성 (Excel 시트 이름은 31자 제한)
+                base_sheet_name = f"{name}"[:28]
+                sheet_name = base_sheet_name
+                
+                # 중복 시트 이름 처리
+                if sheet_name in sheet_names_used:
+                    sheet_names_used[sheet_name] += 1
+                    sheet_name = f"{base_sheet_name}_{sheet_names_used[sheet_name]}"
+                else:
+                    sheet_names_used[sheet_name] = 0
+                
+                df.to_excel(writer, sheet_name=sheet_name)
+        
+        # 요약 시트를 맨 앞에 추가
+        if summary_data:
+            summary_df = pd.DataFrame(summary_data)
+            summary_df.to_excel(writer, sheet_name='📋 요약', index=False)
+    
+    return excel_buffer.getvalue()
+
 # --- Application Layout ---
 
 st.title("🚀 Professional Stock Data Downloader")
@@ -292,6 +331,15 @@ else:
         if download_list:
             st.success(f"✅ {len(download_list)}개의 종목이 입력되었습니다.")
 
+# --- Download Options ---
+download_format = st.radio(
+    "📦 다운로드 형식 선택",
+    ["📁 ZIP (종목별 개별 파일)", "📊 통합 Excel (시트별 분리)"],
+    index=1,
+    horizontal=True,
+    help="ZIP: 종목마다 개별 엑셀 파일로 저장 후 압축 | 통합 Excel: 하나의 엑셀 파일에 종목별 시트로 저장"
+)
+
 # --- Download Execution ---
 if st.button("🚀 데이터 다운로드 시작") and download_list:
     progress_bar = st.progress(0)
@@ -354,27 +402,41 @@ if st.button("🚀 데이터 다운로드 시작") and download_list:
     st.subheader("📊 상세 결과")
     st.table(pd.DataFrame(results_display))
     
-    # Prepare ZIP download
-    with st.spinner("파일 압축 중..."):
-        s_date_str = start_date.strftime("%Y%m%d") if hasattr(start_date, 'strftime') else start_date
-        e_date_str = end_date.strftime("%Y%m%d") if hasattr(end_date, 'strftime') else end_date
-        zip_data, summary_data = create_zip_and_summary(all_results, s_date_str, e_date_str)
+    # Prepare download files
+    s_date_str = start_date.strftime("%Y%m%d") if hasattr(start_date, 'strftime') else start_date
+    e_date_str = end_date.strftime("%Y%m%d") if hasattr(end_date, 'strftime') else end_date
+    
+    if "통합 Excel" in download_format:
+        # 통합 엑셀 모드
+        with st.spinner("통합 엑셀 파일 생성 중..."):
+            combined_data = create_combined_excel(all_results)
         
-    col_dl1, col_dl2 = st.columns(2)
-    with col_dl1:
         st.download_button(
-            label="📁 전체 결과 압축파일(ZIP) 다운로드",
-            data=zip_data,
-            file_name=f"stock_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-            mime="application/zip"
-        )
-    with col_dl2:
-        st.download_button(
-            label="📊 다운로드 결과 요약(Excel) 다운로드",
-            data=summary_data,
-            file_name=f"summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            label="📊 통합 Excel 다운로드 (종목별 시트)",
+            data=combined_data,
+            file_name=f"stock_data_{s_date_str}_{e_date_str}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+    else:
+        # ZIP 모드 (기존 방식)
+        with st.spinner("파일 압축 중..."):
+            zip_data, summary_data_file = create_zip_and_summary(all_results, s_date_str, e_date_str)
+        
+        col_dl1, col_dl2 = st.columns(2)
+        with col_dl1:
+            st.download_button(
+                label="📁 전체 결과 압축파일(ZIP) 다운로드",
+                data=zip_data,
+                file_name=f"stock_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                mime="application/zip"
+            )
+        with col_dl2:
+            st.download_button(
+                label="📊 다운로드 결과 요약(Excel) 다운로드",
+                data=summary_data_file,
+                file_name=f"summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
     st.balloons()
 elif not download_list and "button" in st.session_state:

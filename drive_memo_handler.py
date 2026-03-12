@@ -61,14 +61,19 @@ def _load_memo_content(folder_id, file_name, creds_json):
         return f"내용을 불러오지 못했습니다: {str(e)}"
 
 class DriveMemoHandler:
-    def __init__(self, folder_id, cache_dir=".cache"):
+    def __init__(self, folder_id, cache_dir=".cache", creds_json=None):
         self.folder_id = folder_id
         self.cache_dir = cache_dir
+        self.creds_json = creds_json
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
 
     def get_creds_dict_json(self):
         """인증 정보를 JSON 문자열로 반환합니다."""
+        # 이미 설정된 인증 정보가 있으면 즉시 반환 (쓰레드 내 st.secrets 접근 방지)
+        if self.creds_json:
+            return self.creds_json
+            
         try:
             if 'google_drive' not in st.secrets: return None
             creds_info = st.secrets["google_drive"]
@@ -81,12 +86,13 @@ class DriveMemoHandler:
             if not all([client_id, client_secret, refresh_token]):
                 return None
 
-            return json.dumps({
+            self.creds_json = json.dumps({
                 "client_id": client_id,
                 "client_secret": client_secret,
                 "refresh_token": refresh_token,
                 "token_uri": token_uri,
             })
+            return self.creds_json
         except Exception:
             return None
 
